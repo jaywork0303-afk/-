@@ -35,6 +35,14 @@ let running = false;
 let audioContext = null;
 const lastPlayed = {};
 
+// 추론은 메인 스레드에서 무겁기 때문에 비디오 페인트와 분리해서 운영한다.
+// - latestPredictions: 마지막으로 받은 추론 결과 (rAF 가 매 프레임 그리기만 함)
+// - inferenceInProgress: 추론 in-flight 플래그 (중복 호출 방지)
+// - MIN_INFERENCE_INTERVAL_MS: 추론 최소 간격 (메인 스레드 숨돌릴 시간 확보)
+let latestPredictions = [];
+let inferenceInProgress = false;
+let lastInferenceStart = 0;
+
 // DOM
 const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
@@ -47,6 +55,8 @@ const confSlider = document.getElementById('confSlider');
 const confValue = document.getElementById('confValue');
 const cdSlider = document.getElementById('cdSlider');
 const cdValue = document.getElementById('cdValue');
+const intervalSlider = document.getElementById('intervalSlider');
+const intervalValue = document.getElementById('intervalValue');
 const detectionList = document.getElementById('detectionList');
 const soundList = document.getElementById('soundList');
 
@@ -56,6 +66,9 @@ confSlider.addEventListener('input', () => {
 });
 cdSlider.addEventListener('input', () => {
   cdValue.textContent = parseFloat(cdSlider.value).toFixed(1);
+});
+intervalSlider.addEventListener('input', () => {
+  intervalValue.textContent = intervalSlider.value;
 });
 
 // 매핑된 사운드 목록 표시
@@ -137,11 +150,12 @@ async function loadModel() {
 
 async function startCamera() {
   // 해상도를 낮추면 추론 속도가 크게 빨라짐 (입력 텐서가 작아짐)
+  // 화면에는 CSS 로 100% 늘려 표시되므로 화질 차이는 거의 안 보임
   stream = await navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: 'user',
-      width: { ideal: 480 },
-      height: { ideal: 360 },
+      width: { ideal: 384 },
+      height: { ideal: 288 },
       frameRate: { ideal: 30 },
     },
     audio: false,
@@ -204,38 +218,58 @@ function updateDetectionList(predictions) {
   });
 }
 
-// 추론 FPS 계산용
-let frameCount = 0;
+// FPS 계산용 (추론 / 페인트 분리)
+let inferCount = 0;
+let paintCount = 0;
 let lastFpsTime = 0;
 
-async function detectionLoop() {
+// 추론을 fire-and-forget 으로 트리거. await 하지 않아 메인 스레드 블로킹 없음.
+function triggerInference() {
+  if (inferenceInProgress) return;
+  const now = performance.now();
+  const minInterval = parseInt(intervalSlider.value, 10);
+  if (now - lastInferenceStart < minInterval) return;
+  if (video.readyState < 2) return;
+
+  inferenceInProgress = true;
+  lastInferenceStart = now;
+
+  // tf.tidy 는 detect 내부에서 처리됨. 결과 Promise 를 받아 저장만 한다.
+  model
+    .detect(video, 10)
+    .then((predictions) => {
+      const conf = parseFloat(confSlider.value);
+      latestPredictions = predictions.filter((p) => p.score >= conf);
+      updateDetectionList(latestPredictions);
+      playSounds(latestPredictions.map((p) => p.class));
+      inferCount++;
+    })
+    .catch((e) => console.error('detection error', e))
+    .finally(() => {
+      inferenceInProgress = false;
+    });
+}
+
+// 메인 렌더 루프: 매 페인트마다 (1) 추론 트리거 시도 (2) 최신 박스 그리기
+function renderLoop() {
   if (!running) return;
 
-  try {
-    // model.detect 의 두 번째 인자는 maxNumBoxes (기본 20). 줄이면 후처리가 빨라짐
-    const predictions = await model.detect(video, 10);
-    const conf = parseFloat(confSlider.value);
-    const filtered = predictions.filter((p) => p.score >= conf);
+  triggerInference();
+  drawDetections(latestPredictions);
+  paintCount++;
 
-    drawDetections(filtered);
-    updateDetectionList(filtered);
-    playSounds(filtered.map((p) => p.class));
-
-    // FPS 표시 (1초마다 갱신)
-    frameCount++;
-    const now = performance.now();
-    if (now - lastFpsTime >= 1000) {
-      const fps = (frameCount * 1000) / (now - lastFpsTime);
-      statusEl.textContent = `실행 중 — ${fps.toFixed(1)} FPS`;
-      frameCount = 0;
-      lastFpsTime = now;
-    }
-  } catch (e) {
-    console.error('detection error', e);
+  // 1초마다 FPS 갱신
+  const now = performance.now();
+  if (now - lastFpsTime >= 1000) {
+    const inferFps = (inferCount * 1000) / (now - lastFpsTime);
+    const paintFps = (paintCount * 1000) / (now - lastFpsTime);
+    statusEl.textContent = `실행 중 — 영상 ${paintFps.toFixed(0)}fps · 추론 ${inferFps.toFixed(1)}fps`;
+    inferCount = 0;
+    paintCount = 0;
+    lastFpsTime = now;
   }
 
-  // requestAnimationFrame: 브라우저가 페인트와 동기화해 부드럽게 처리
-  requestAnimationFrame(detectionLoop);
+  requestAnimationFrame(renderLoop);
 }
 
 startBtn.addEventListener('click', async () => {
@@ -273,9 +307,13 @@ startBtn.addEventListener('click', async () => {
     running = true;
     startBtn.textContent = '■ 정지';
     statusEl.textContent = '실행 중';
-    frameCount = 0;
+    latestPredictions = [];
+    inferCount = 0;
+    paintCount = 0;
     lastFpsTime = performance.now();
-    detectionLoop();
+    lastInferenceStart = 0;
+    inferenceInProgress = false;
+    renderLoop();
   } catch (e) {
     console.error(e);
     statusEl.textContent = `오류: ${e.message}`;

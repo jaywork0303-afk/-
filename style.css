@@ -60,8 +60,16 @@ main {
   height: 100%;
   object-fit: cover;
 }
+#video {
+  /* 자체 합성 레이어로 분리해 추론으로 메인 스레드가 바빠도 GPU 가 페인트 처리 */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
 #overlay {
   pointer-events: none;
+  will-change: transform;
+  transform: translateZ(0);
 }
 .overlay-message {
   position: absolute;
