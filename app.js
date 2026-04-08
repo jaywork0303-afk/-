@@ -61,6 +61,9 @@ const detectionList = document.getElementById('detectionList');
 const soundList = document.getElementById('soundList');
 const classSelect = document.getElementById('classSelect');
 const soundFileInput = document.getElementById('soundFileInput');
+const distanceMode = document.getElementById('distanceMode');
+const falloffSlider = document.getElementById('falloffSlider');
+const falloffValue = document.getElementById('falloffValue');
 
 // COCO-SSD 의 80개 클래스 — 업로드 UI 의 사물 선택 드롭다운에 사용
 const COCO_CLASSES = [
@@ -99,6 +102,9 @@ cdSlider.addEventListener('input', () => {
 });
 intervalSlider.addEventListener('input', () => {
   intervalValue.textContent = intervalSlider.value;
+});
+falloffSlider.addEventListener('input', () => {
+  falloffValue.textContent = parseFloat(falloffSlider.value).toFixed(1);
 });
 
 // ---------- IndexedDB: 업로드 사운드 영구 저장 ----------
@@ -399,8 +405,40 @@ function hasSound(label) {
   return customSounds[label] != null || SOUND_MAP[label] != null;
 }
 
+// 사람 bbox 들 중 가장 가까운 것을 찾아 근접도(0~1) 계산
+// 1.0 = 사람 위 / 매우 가까움, 0에 가까움 = 멀리 떨어짐
+function computeProximity(objBox, personBoxes, falloff) {
+  if (personBoxes.length === 0) return 1.0;
+
+  const [ox, oy, ow, oh] = objBox;
+  const ocx = ox + ow / 2;
+  const ocy = oy + oh / 2;
+
+  let minDist = Infinity;
+  let bestPersonScale = 1;
+
+  for (const pb of personBoxes) {
+    const [px, py, pw, ph] = pb;
+    const pcx = px + pw / 2;
+    const pcy = py + ph / 2;
+    const dx = pcx - ocx;
+    const dy = pcy - ocy;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < minDist) {
+      minDist = distance;
+      // 사람 bbox 의 절반 대각선을 단위 척도로 (사람 한 명 정도 거리 = 1)
+      bestPersonScale = Math.sqrt(pw * pw + ph * ph) / 2;
+    }
+  }
+
+  const proximityUnits = minDist / Math.max(bestPersonScale, 1);
+  // 부드러운 감쇠 곡선: 1 / (1 + (d/1.5)^falloff)
+  // proximity 0 → 1.0,  1.5 → 0.5,  멀수록 0 에 수렴
+  return 1 / (1 + Math.pow(proximityUnits / 1.5, falloff));
+}
+
 // 한 번의 톤 재생 (오실레이터 + 짧은 envelope)
-function playTone(label) {
+function playTone(label, multiplier = 1.0) {
   if (!audioContext || !SOUND_MAP[label]) return;
   const { freq, type } = SOUND_MAP[label];
 
@@ -410,9 +448,10 @@ function playTone(label) {
   osc.frequency.value = freq;
 
   const now = audioContext.currentTime;
+  const peak = Math.max(0.0001, 0.18 * multiplier);
   gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(0.18, now + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + TONE_DURATION);
+  gain.gain.linearRampToValueAtTime(peak, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(peak * 0.001, now + TONE_DURATION);
 
   osc.connect(gain).connect(audioContext.destination);
   osc.start(now);
@@ -421,7 +460,8 @@ function playTone(label) {
 
 // 업로드된 사운드 재생 (AudioBufferSourceNode — 동시 재생 가능)
 // 볼륨(GainNode)과 재생 속도(playbackRate)를 사용자 설정값으로 적용
-function playCustom(label) {
+// multiplier: 거리 모드 등에서 추가로 곱하는 볼륨 계수 (0~1+)
+function playCustom(label, multiplier = 1.0) {
   if (!audioContext || !customSounds[label]) return;
   const { buffer, volume, rate } = customSounds[label];
 
@@ -430,45 +470,58 @@ function playCustom(label) {
   source.playbackRate.value = rate ?? 1.0;
 
   const gain = audioContext.createGain();
-  gain.gain.value = volume ?? 1.0;
+  gain.gain.value = (volume ?? 1.0) * multiplier;
 
   source.connect(gain).connect(audioContext.destination);
   source.start();
 }
 
 // 라벨 1개 재생: 커스텀이 있으면 커스텀, 없으면 기본 톤
-function playOne(label) {
+function playOne(label, multiplier = 1.0) {
   if (customSounds[label]) {
-    playCustom(label);
+    playCustom(label, multiplier);
   } else if (SOUND_MAP[label]) {
-    playTone(label);
+    playTone(label, multiplier);
   }
 }
 
-// 감지된 라벨에 대해 모드/쿨다운에 따라 사운드 재생
-function playSounds(labels) {
+// 감지된 prediction 들에 대해 모드/쿨다운/거리에 따라 사운드 재생
+// predictions: [{ class, score, bbox, proximityVolume }]
+function playSounds(predictions) {
   const now = performance.now() / 1000;
   const cd = parseFloat(cdSlider.value);
-  const unique = [...new Set(labels)];
+
+  // 같은 클래스가 여러 개 감지되면 가장 가까운(=볼륨 큰) 것만 사용
+  const byClass = new Map();
+  for (const p of predictions) {
+    const existing = byClass.get(p.class);
+    if (!existing || (p.proximityVolume ?? 1) > (existing.proximityVolume ?? 1)) {
+      byClass.set(p.class, p);
+    }
+  }
+
+  const candidates = [];
+  for (const [label, pred] of byClass) {
+    if (!hasSound(label)) continue;
+    if (now - (lastPlayed[label] || 0) < cd) continue;
+    candidates.push({ label, multiplier: pred.proximityVolume ?? 1 });
+  }
 
   if (multiModeEl.checked) {
-    // 다중 모드: 감지된 모든 매핑 사물의 사운드를 병렬 재생
-    unique.forEach((label) => {
-      if (!hasSound(label)) return;
-      if (now - (lastPlayed[label] || 0) < cd) return;
-      playOne(label);
+    // 다중 모드: 모두 재생 (각자 자기 multiplier 로)
+    for (const { label, multiplier } of candidates) {
+      playOne(label, multiplier);
       lastPlayed[label] = now;
-    });
+    }
   } else {
-    // 단일 모드: 직전 사운드가 끝났을 때만 1개 재생
+    // 단일 모드: 직전 사운드 끝났을 때만, 그리고 가장 가까운 사물 1개
     if (now - (lastPlayed.__last__ || 0) < TONE_DURATION) return;
-    for (const label of unique) {
-      if (!hasSound(label)) continue;
-      if (now - (lastPlayed[label] || 0) < cd) continue;
-      playOne(label);
+    candidates.sort((a, b) => b.multiplier - a.multiplier);
+    if (candidates.length > 0) {
+      const { label, multiplier } = candidates[0];
+      playOne(label, multiplier);
       lastPlayed[label] = now;
       lastPlayed.__last__ = now;
-      break;
     }
   }
 }
@@ -524,19 +577,66 @@ function stopCamera() {
 
 function drawDetections(predictions) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 거리 모드일 때: 사람 중심점을 미리 모아두고, 각 사물에서 가장 가까운 사람으로
+  // 옅은 선을 그어 시각적으로 페어링을 보여준다
+  const distMode = distanceMode.checked;
+  const personCenters = distMode
+    ? predictions
+        .filter((p) => p.class === 'person')
+        .map((p) => [p.bbox[0] + p.bbox[2] / 2, p.bbox[1] + p.bbox[3] / 2])
+    : [];
+
   predictions.forEach((p) => {
     const [x, y, w, h] = p.bbox;
-    const color = hasSound(p.class) ? '#6acc6a' : '#ffcc4a';
+    const isPerson = p.class === 'person';
+    const baseColor = hasSound(p.class) ? '#6acc6a' : '#ffcc4a';
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    // 거리 볼륨에 따라 박스 두께/투명도 변조
+    const vol = p.proximityVolume ?? 1;
+    const lineWidth = distMode && !isPerson ? 1 + vol * 4 : 3;
+
+    ctx.strokeStyle = baseColor;
+    ctx.globalAlpha = distMode && !isPerson ? 0.3 + vol * 0.7 : 1;
+    ctx.lineWidth = lineWidth;
     ctx.strokeRect(x, y, w, h);
 
-    const text = `${p.class} ${(p.score * 100).toFixed(0)}%`;
-    ctx.font = '600 16px sans-serif';
+    // 사람 - 사물 페어링 라인
+    if (distMode && !isPerson && personCenters.length > 0) {
+      const ocx = x + w / 2;
+      const ocy = y + h / 2;
+      // 가장 가까운 사람 찾기
+      let near = personCenters[0];
+      let minD = Infinity;
+      for (const c of personCenters) {
+        const d = (c[0] - ocx) ** 2 + (c[1] - ocy) ** 2;
+        if (d < minD) {
+          minD = d;
+          near = c;
+        }
+      }
+      ctx.beginPath();
+      ctx.moveTo(near[0], near[1]);
+      ctx.lineTo(ocx, ocy);
+      ctx.strokeStyle = baseColor;
+      ctx.globalAlpha = 0.2 + vol * 0.6;
+      ctx.lineWidth = 1 + vol * 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.globalAlpha = 1;
+
+    // 라벨 텍스트 (거리 모드면 vol% 도 표시)
+    let text = `${p.class} ${(p.score * 100).toFixed(0)}%`;
+    if (distMode && !isPerson) {
+      text += ` · vol ${(vol * 100).toFixed(0)}%`;
+    }
+    ctx.font = '600 14px sans-serif';
     const textW = ctx.measureText(text).width;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, Math.max(0, y - 22), textW + 10, 22);
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(x, Math.max(0, y - 20), textW + 10, 20);
     ctx.fillStyle = '#0a0a10';
     ctx.fillText(text, x + 5, Math.max(14, y - 6));
   });
@@ -550,11 +650,16 @@ function updateDetectionList(predictions) {
     detectionList.appendChild(li);
     return;
   }
+  const distMode = distanceMode.checked;
   predictions.forEach((p) => {
     const li = document.createElement('li');
     const has = hasSound(p.class);
     if (has) li.className = 'has-sound';
-    li.textContent = `${has ? '♪' : ' '} ${p.class}  (${(p.score * 100).toFixed(0)}%)`;
+    let text = `${has ? '♪' : ' '} ${p.class}  (${(p.score * 100).toFixed(0)}%)`;
+    if (distMode && p.class !== 'person') {
+      text += ` · 🔊${((p.proximityVolume ?? 1) * 100).toFixed(0)}%`;
+    }
+    li.textContent = text;
     detectionList.appendChild(li);
   });
 }
@@ -580,9 +685,28 @@ function triggerInference() {
     .detect(video, 10)
     .then((predictions) => {
       const conf = parseFloat(confSlider.value);
-      latestPredictions = predictions.filter((p) => p.score >= conf);
+      const filtered = predictions.filter((p) => p.score >= conf);
+
+      // 거리 모드: 사람 bbox 들을 모아서 각 사물에 proximityVolume 부여
+      if (distanceMode.checked) {
+        const personBoxes = filtered
+          .filter((p) => p.class === 'person')
+          .map((p) => p.bbox);
+        const falloff = parseFloat(falloffSlider.value);
+        for (const p of filtered) {
+          if (p.class === 'person') {
+            p.proximityVolume = 1.0; // 사람 자신은 항상 풀볼륨
+          } else {
+            p.proximityVolume = computeProximity(p.bbox, personBoxes, falloff);
+          }
+        }
+      } else {
+        for (const p of filtered) p.proximityVolume = 1.0;
+      }
+
+      latestPredictions = filtered;
       updateDetectionList(latestPredictions);
-      playSounds(latestPredictions.map((p) => p.class));
+      playSounds(latestPredictions);
       inferCount++;
     })
     .catch((e) => console.error('detection error', e))

@@ -35,6 +35,15 @@
           <span>다중 사물 동시 재생</span>
         </label>
         <p class="hint">끄면 한 번에 한 사운드만 재생됩니다</p>
+        <label class="check" style="margin-top: 8px;">
+          <input type="checkbox" id="distanceMode" />
+          <span>사람 기준 거리 볼륨</span>
+        </label>
+        <p class="hint">사람에게 가까운 사물일수록 더 큰 소리로 재생됩니다</p>
+        <label>
+          감쇠 강도 <span class="val" id="falloffValue">2.0</span>
+          <input type="range" id="falloffSlider" min="0.5" max="5" step="0.1" value="2.0" />
+        </label>
       </fieldset>
 
       <fieldset>
