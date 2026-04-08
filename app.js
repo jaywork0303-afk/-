@@ -70,6 +70,11 @@ const soundFileInput = document.getElementById('soundFileInput');
 const distanceMode = document.getElementById('distanceMode');
 const falloffSlider = document.getElementById('falloffSlider');
 const falloffValue = document.getElementById('falloffValue');
+const videoContainer = document.getElementById('videoContainer');
+const camSwitchBtn = document.getElementById('camSwitchBtn');
+
+// 현재 카메라 방향 ('user' = 전면, 'environment' = 후면)
+let facingMode = 'user';
 
 // COCO-SSD 의 80개 클래스 — 업로드 UI 의 사물 선택 드롭다운에 사용
 const COCO_CLASSES = [
@@ -493,6 +498,41 @@ soundFileInput.addEventListener('change', async (e) => {
 // 페이지 로드 시 저장된 사운드 불러오기
 loadSavedSoundsFromDB();
 
+// 카메라 전환 버튼: facingMode 를 토글한 뒤 재시작
+camSwitchBtn.addEventListener('click', async () => {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  // 버튼 라벨 업데이트 (시각적 힌트)
+  camSwitchBtn.title = facingMode === 'user'
+    ? '전면 카메라 (클릭: 후면으로)'
+    : '후면 카메라 (클릭: 전면으로)';
+
+  // unflip 클래스는 즉시 토글 (카메라 안 켜져 있어도 다음 시작 시 반영)
+  applyFacingTransform();
+
+  // 실행 중이면 스트림을 새 facingMode 로 교체
+  if (running) {
+    camSwitchBtn.disabled = true;
+    statusEl.textContent = '카메라 전환 중...';
+    try {
+      await startCamera();
+      statusEl.textContent = `실행 중 — ${facingMode === 'user' ? '전면' : '후면'}`;
+    } catch (e) {
+      console.error('카메라 전환 실패', e);
+      statusEl.textContent = `카메라 전환 실패: ${e.message}`;
+      // 실패 시 원래 facingMode 로 복구 시도
+      facingMode = facingMode === 'user' ? 'environment' : 'user';
+      applyFacingTransform();
+      try {
+        await startCamera();
+      } catch (_) {
+        /* 복구도 실패하면 포기 */
+      }
+    } finally {
+      camSwitchBtn.disabled = false;
+    }
+  }
+});
+
 // 사물에 사운드가 매핑되어 있는지 (커스텀 우선, 없으면 기본 톤)
 function hasSound(label) {
   return customSounds[label] != null || SOUND_MAP[label] != null;
@@ -717,11 +757,17 @@ async function loadModel() {
 }
 
 async function startCamera() {
+  // 이전 스트림이 있으면 먼저 정리 (카메라 전환 시)
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+
   // 해상도를 낮추면 추론 속도가 크게 빨라짐 (입력 텐서가 작아짐)
   // 화면에는 CSS 로 100% 늘려 표시되므로 화질 차이는 거의 안 보임
   stream = await navigator.mediaDevices.getUserMedia({
     video: {
-      facingMode: 'user',
+      facingMode: { ideal: facingMode },
       width: { ideal: 384 },
       height: { ideal: 288 },
       frameRate: { ideal: 30 },
@@ -736,6 +782,20 @@ async function startCamera() {
   await video.play();
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
+
+  // 전면 카메라는 브라우저가 프리뷰를 좌우반전시키는 경우가 많아서
+  // unflip 클래스로 CSS scaleX(-1) 적용 → 실제 좌우 복원
+  // 후면 카메라는 그대로 표시
+  applyFacingTransform();
+}
+
+// facingMode 에 맞춰 비디오 컨테이너에 unflip 클래스 토글
+function applyFacingTransform() {
+  if (facingMode === 'user') {
+    videoContainer.classList.add('unflip');
+  } else {
+    videoContainer.classList.remove('unflip');
+  }
 }
 
 function stopCamera() {

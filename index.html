@@ -15,9 +15,17 @@
   </header>
 
   <main>
-    <section class="video-container">
+    <section class="video-container unflip" id="videoContainer">
       <video id="video" autoplay muted playsinline></video>
       <canvas id="overlay"></canvas>
+      <button
+        id="camSwitchBtn"
+        class="cam-switch-btn"
+        title="전면 / 후면 카메라 전환"
+        aria-label="카메라 전환"
+      >
+        🔄
+      </button>
       <div id="overlayMessage" class="overlay-message">
         시작 버튼을 눌러 카메라를 켜세요
       </div>
