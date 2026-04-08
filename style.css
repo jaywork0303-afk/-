@@ -1,23 +1,31 @@
 /* ============================================================
-   서정월드 — 크레파스 손그림 핑크 테마
+   서정월드 — 크레파스 손그림 핑크 테마 (아트북 확장판)
    ============================================================ */
 
 :root {
   --bg: #ffeef3;
   --bg-grad-1: #ffe0eb;
   --bg-grad-2: #ffd6e8;
+  --bg-grad-3: #fff5d6;
   --ink: #4a2838;
   --ink-soft: #7a4458;
   --ink-faded: #a87788;
   --paper: #fff8fb;
   --paper-2: #ffeef5;
+  --paper-3: #fffef5;
   --pink: #ff5c9c;
   --pink-hot: #ff2e7e;
   --pink-soft: #ffb6cf;
   --pink-pale: #ffd9e6;
   --lemon: #fff2a8;
+  --lemon-ink: #ffb800;
   --mint: #b8f0d8;
+  --mint-ink: #28c896;
   --peach: #ffd4b8;
+  --peach-ink: #ff8840;
+  --lavender: #e0c8ff;
+  --lavender-ink: #9060ff;
+  --cream: #fff5e6;
   --shadow: rgba(255, 46, 126, 0.18);
   --shadow-strong: rgba(255, 46, 126, 0.32);
 }
@@ -39,15 +47,30 @@ body {
   color: var(--ink);
   background: var(--bg);
   background-image:
-    radial-gradient(circle at 12% 18%, var(--bg-grad-1) 0%, transparent 45%),
-    radial-gradient(circle at 85% 75%, var(--bg-grad-2) 0%, transparent 50%),
-    /* 크레파스 질감 */
+    /* 방사형 컬러 블롭 — 멀티컬러 수채화 느낌 */
+    radial-gradient(circle at 12% 18%, var(--bg-grad-1) 0%, transparent 38%),
+    radial-gradient(circle at 85% 72%, var(--bg-grad-2) 0%, transparent 42%),
+    radial-gradient(circle at 78% 18%, rgba(224, 200, 255, 0.35) 0%, transparent 30%),
+    radial-gradient(circle at 15% 80%, rgba(184, 240, 216, 0.4) 0%, transparent 32%),
+    radial-gradient(circle at 50% 50%, var(--bg-grad-3) 0%, transparent 55%),
+    /* 노트북 도트 그리드 — 작은 핑크 점들 규칙적으로 */
+    radial-gradient(
+      circle at 1px 1px,
+      rgba(255, 46, 126, 0.18) 1.3px,
+      transparent 1.6px
+    ),
+    /* 크레파스 결 */
     repeating-linear-gradient(
       45deg,
       transparent 0 2px,
       rgba(255, 182, 207, 0.12) 2px 3px
     ),
     var(--bg);
+  background-size:
+    auto, auto, auto, auto, auto,
+    24px 24px,
+    auto,
+    auto;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
@@ -62,7 +85,7 @@ body {
 }
 
 /* ============================================================
-   배경 장식 — 떠다니는 하트/별
+   배경 장식 — 손그림 doodle 들
    ============================================================ */
 .bg-decor {
   position: fixed;
@@ -71,90 +94,186 @@ body {
   z-index: 0;
   overflow: hidden;
 }
-.floaty {
+.doodle {
   position: absolute;
-  font-size: 2rem;
-  color: var(--pink-soft);
   opacity: 0.55;
-  animation: float 12s ease-in-out infinite;
-  user-select: none;
+  filter: url(#crayon-rough);
+  animation: doodle-float 14s ease-in-out infinite;
 }
-.floaty.heart {
-  color: var(--pink);
+.doodle-1  { top: 6%;  left: 4%;   width: 70px; height: 70px; animation-delay: 0s;   }
+.doodle-2  { top: 14%; right: 8%;  width: 55px; height: 55px; animation-delay: 1.5s; transform: rotate(15deg); }
+.doodle-3  { top: 40%; left: 2%;   width: 65px; height: 60px; animation-delay: 3s;   }
+.doodle-4  { top: 35%; right: 4%;  width: 45px; height: 45px; animation-delay: 4.5s; transform: rotate(-20deg); }
+.doodle-5  { top: 62%; left: 6%;   width: 75px; height: 75px; animation-delay: 6s;   transform: rotate(10deg); }
+.doodle-6  { top: 68%; right: 6%;  width: 80px; height: 80px; animation-delay: 7.5s; }
+.doodle-7  { bottom: 12%; left: 18%; width: 110px; height: 55px; animation-delay: 2s; transform: rotate(-8deg); }
+.doodle-8  { top: 22%; left: 42%; width: 50px;  height: 50px; animation-delay: 3.8s; transform: rotate(25deg); opacity: 0.35; }
+.doodle-9  { bottom: 8%;  right: 20%; width: 60px; height: 60px; animation-delay: 5.2s; transform: rotate(-15deg); }
+.doodle-10 { top: 88%; left: 48%; width: 55px;  height: 52px; animation-delay: 0.8s; transform: rotate(5deg); }
+.doodle-11 { top: 8%;  right: 38%; width: 42px;  height: 42px; animation-delay: 6.5s; transform: rotate(-10deg); opacity: 0.4; }
+.doodle-12 { bottom: 38%; left: 12%; width: 58px; height: 58px; animation-delay: 4s; transform: rotate(18deg); opacity: 0.4; }
+
+@keyframes doodle-float {
+  0%, 100% { transform: translate(0, 0) rotate(var(--r, 0deg)); }
+  25%      { transform: translate(4px, -10px) rotate(calc(var(--r, 0deg) + 3deg)); }
+  50%      { transform: translate(-4px, -18px) rotate(calc(var(--r, 0deg) - 2deg)); }
+  75%      { transform: translate(6px, -8px) rotate(calc(var(--r, 0deg) + 4deg)); }
 }
-.floaty.heart.pink {
+
+/* 배경에 흩뿌려진 손글씨 낙서 텍스트 */
+.scribble-text {
+  position: absolute;
+  font-family: 'Single Day', 'Gaegu', cursive;
+  color: var(--pink-hot);
+  opacity: 0.45;
+  pointer-events: none;
+  white-space: nowrap;
+  filter: url(#crayon-rough);
+}
+.scribble-text-1 {
+  top: 24%;
+  left: 10%;
+  font-size: 1.6rem;
+  transform: rotate(-12deg);
+  color: var(--mint-ink);
+}
+.scribble-text-2 {
+  top: 58%;
+  right: 8%;
+  font-size: 1.9rem;
+  transform: rotate(8deg);
   color: var(--pink-hot);
 }
-.floaty.star {
-  color: var(--lemon);
-  font-size: 1.6rem;
-  filter: drop-shadow(0 0 2px var(--pink-soft));
-}
-.floaty.dot {
-  width: 14px;
-  height: 14px;
-  background: var(--pink-pale);
-  border-radius: 50%;
-  border: 2px solid var(--pink-soft);
-}
-.floaty:nth-child(1) { top: 8%;  left: 6%;  animation-delay: 0s;   font-size: 2.2rem; }
-.floaty:nth-child(2) { top: 18%; right: 10%; animation-delay: 1.2s; }
-.floaty:nth-child(3) { top: 45%; left: 4%;  animation-delay: 2.4s; font-size: 2.5rem; }
-.floaty:nth-child(4) { top: 60%; right: 6%;  animation-delay: 3.6s; }
-.floaty:nth-child(5) { bottom: 12%; left: 14%; animation-delay: 4.8s; font-size: 1.8rem; }
-.floaty:nth-child(6) { top: 28%; left: 50%; animation-delay: 1.8s; }
-.floaty:nth-child(7) { bottom: 25%; right: 24%; animation-delay: 3s; }
-.floaty:nth-child(8) { top: 72%; left: 32%; animation-delay: 5.4s; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0) rotate(-4deg); }
-  50%      { transform: translateY(-18px) rotate(4deg); }
+.scribble-text-3 {
+  bottom: 18%;
+  left: 38%;
+  font-size: 1.5rem;
+  transform: rotate(-5deg);
+  color: var(--peach-ink);
 }
 
 /* ============================================================
-   헤더 — 서정월드 타이틀
+   헤더 — 서정월드 타이틀 (예술적 확장)
    ============================================================ */
 .site-header {
   text-align: center;
-  padding: 32px 20px 20px;
+  padding: 48px 20px 28px;
   position: relative;
   z-index: 2;
 }
+.header-doodle {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  opacity: 0.75;
+  filter: url(#crayon-rough);
+}
+.header-doodle-left {
+  top: 20px;
+  left: 8%;
+  animation: wobble 6s ease-in-out infinite;
+}
+.header-doodle-right {
+  top: 28px;
+  right: 10%;
+  width: 100px;
+  height: 60px;
+  animation: wobble 6s ease-in-out infinite reverse;
+}
+@keyframes wobble {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50%      { transform: rotate(6deg) translateY(-8px); }
+}
+
 .title {
   margin: 0;
-  font-size: 3.4rem;
+  font-size: 4.2rem;
   font-weight: 700;
   color: var(--pink-hot);
   letter-spacing: 0.05em;
-  text-shadow:
-    3px 3px 0 var(--pink-pale),
-    4px 4px 0 var(--pink-soft),
-    5px 5px 10px var(--shadow);
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  transform: rotate(-2deg);
-  filter: url(#crayon-rough);
+  gap: 16px;
+  position: relative;
+  transform: rotate(-2.5deg);
+  line-height: 1.1;
+}
+.title-text {
+  position: relative;
+  display: inline-block;
+  /* 여러 겹의 컬러 그림자 — 마커가 번진 느낌 */
+  text-shadow:
+    -2px -2px 0 var(--lemon),
+    2px -2px 0 var(--mint),
+    -2px 2px 0 var(--lavender),
+    3px 3px 0 var(--pink-pale),
+    5px 5px 0 var(--pink-soft),
+    7px 7px 14px var(--shadow-strong);
+  filter: url(#crayon-rough-strong);
+  animation: title-wiggle 5s ease-in-out infinite;
+}
+@keyframes title-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(1deg); }
+  75%      { transform: rotate(-1deg); }
 }
 .title-sparkle {
-  font-size: 2rem;
-  color: var(--lemon);
-  text-shadow: 2px 2px 0 var(--pink);
+  font-size: 2.4rem;
+  color: var(--lemon-ink);
+  text-shadow:
+    2px 2px 0 var(--pink),
+    4px 4px 0 var(--pink-pale);
   animation: sparkle 2s ease-in-out infinite;
   display: inline-block;
+  filter: url(#crayon-rough);
 }
 .title-sparkle:nth-child(3) {
   animation-delay: 1s;
+  color: var(--mint-ink);
 }
 @keyframes sparkle {
   0%, 100% { transform: scale(1) rotate(0deg); }
-  50%      { transform: scale(1.3) rotate(18deg); }
+  50%      { transform: scale(1.4) rotate(24deg); }
 }
+.title-underline {
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  bottom: -14px;
+  height: 20px;
+  width: calc(100% + 20px);
+  pointer-events: none;
+}
+
 .subtitle {
-  margin: 12px 0 0;
+  margin: 30px 0 0;
   color: var(--ink-soft);
-  font-size: 1.25rem;
-  transform: rotate(0.5deg);
+  font-size: 1.35rem;
+  line-height: 1.6;
+  transform: rotate(-0.3deg);
+}
+.subtitle-marker {
+  display: inline-block;
+  padding: 0 8px;
+  background: linear-gradient(
+    to bottom,
+    transparent 55%,
+    rgba(255, 242, 168, 0.8) 55%,
+    rgba(255, 242, 168, 0.8) 90%,
+    transparent 90%
+  );
+  transform: rotate(-0.8deg);
+}
+.subtitle-heart {
+  color: var(--pink-hot);
+  display: inline-block;
+  animation: heart-beat 1.4s ease-in-out infinite;
+  font-size: 1.6rem;
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  30%      { transform: scale(1.25); }
+  60%      { transform: scale(0.92); }
 }
 
 /* ============================================================
@@ -192,14 +311,63 @@ main {
   position: relative;
   background: var(--paper);
   border-radius: 26px 18px 32px 20px;
-  overflow: hidden;
+  overflow: visible;
   aspect-ratio: 4 / 3;
-  border: 4px solid var(--pink-hot);
+  border: 5px solid var(--pink-hot);
+  /* 네 모서리에서 삐져나오는 멀티컬러 오프셋 그림자 */
   box-shadow:
+    -4px -4px 0 var(--mint),
+    6px -3px 0 var(--lemon),
+    -3px 5px 0 var(--lavender),
     6px 6px 0 var(--pink-pale),
     10px 10px 0 var(--pink-soft),
-    14px 14px 24px var(--shadow);
-  transform: rotate(-0.8deg);
+    14px 14px 24px var(--shadow-strong);
+  transform: rotate(-1.2deg);
+  filter: url(#crayon-rough);
+}
+.video-container > video,
+.video-container > canvas,
+.video-container > #overlayMessage {
+  border-radius: 22px 14px 28px 16px;
+  overflow: hidden;
+}
+/* 비디오 컨테이너 위에 붙는 가로 워시 테이프 */
+.video-container::before {
+  content: '';
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 120px;
+  height: 26px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--mint) 0 8px,
+    var(--mint-ink) 8px 16px
+  );
+  border: 1.5px solid rgba(40, 200, 150, 0.35);
+  box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.15);
+  opacity: 0.9;
+  z-index: 20;
+  border-radius: 2px;
+}
+/* 오른쪽 아래 스티커 */
+.video-container::after {
+  content: '♡ live ♡';
+  position: absolute;
+  right: -16px;
+  bottom: -14px;
+  padding: 6px 14px;
+  background: var(--lemon);
+  color: var(--pink-hot);
+  border: 3px solid var(--pink-hot);
+  border-radius: 18px 22px 16px 20px;
+  font-family: 'Single Day', 'Gaegu', cursive;
+  font-size: 1.1rem;
+  font-weight: 700;
+  transform: rotate(8deg);
+  box-shadow: 3px 3px 0 var(--pink-soft);
+  z-index: 20;
   filter: url(#crayon-rough);
 }
 #video,
@@ -280,21 +448,25 @@ main {
 button.primary {
   font-family: inherit;
   font-weight: 700;
-  font-size: 1.45rem;
-  padding: 14px 20px;
-  border: 4px solid var(--pink-hot);
+  font-size: 1.55rem;
+  padding: 16px 22px;
+  border: 5px solid var(--pink-hot);
   border-radius: 22px 14px 26px 16px;
   background: var(--pink);
   color: var(--paper);
   text-shadow: 2px 2px 0 var(--pink-hot);
   cursor: pointer;
+  /* 더 다층적인 멀티컬러 그림자 */
   box-shadow:
+    -3px -3px 0 var(--mint),
+    3px -3px 0 var(--lemon),
     4px 4px 0 var(--pink-soft),
     6px 6px 0 var(--pink-pale),
-    8px 8px 14px var(--shadow);
-  transform: rotate(-1deg);
+    8px 8px 14px var(--shadow-strong);
+  transform: rotate(-1.5deg);
   transition: transform 0.15s, box-shadow 0.15s;
-  filter: url(#crayon-rough);
+  filter: url(#crayon-rough-strong);
+  letter-spacing: 0.03em;
 }
 button.primary:hover {
   transform: rotate(-1deg) translate(-2px, -2px);
@@ -335,7 +507,7 @@ button.primary:disabled {
 fieldset {
   border: 4px solid var(--pink);
   border-radius: 22px 28px 18px 26px;
-  padding: 16px 18px 14px;
+  padding: 18px 18px 16px;
   margin: 0;
   background: var(--paper);
   box-shadow:
@@ -344,25 +516,122 @@ fieldset {
   position: relative;
   filter: url(#crayon-rough);
 }
-fieldset:nth-of-type(odd) {
-  transform: rotate(0.6deg);
+
+/* 워시 테이프: 카드 위쪽에 대각선 줄무늬 테이프 조각 */
+fieldset::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  left: 24px;
+  width: 78px;
+  height: 22px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--pink-soft) 0 6px,
+    var(--pink-pale) 6px 12px
+  );
+  border: 1.5px solid rgba(74, 40, 56, 0.25);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.15);
+  transform: rotate(-4deg);
+  opacity: 0.92;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* 각 카드마다 다른 색 / 다른 회전 각도로 '꼴라주' 느낌 */
+fieldset:nth-of-type(1) {
+  transform: rotate(-1.2deg);
   border-color: var(--pink-hot);
-  border-radius: 26px 18px 28px 20px;
+  border-radius: 28px 16px 30px 18px;
+  background: var(--paper);
 }
-fieldset:nth-of-type(even) {
+fieldset:nth-of-type(1)::before {
+  background: repeating-linear-gradient(-45deg, var(--pink-hot) 0 6px, var(--pink-soft) 6px 12px);
+  left: 30px;
+}
+fieldset:nth-of-type(2) {
+  transform: rotate(0.8deg);
+  border-color: var(--lavender-ink);
+  border-radius: 18px 32px 20px 28px;
+  background: var(--paper-3);
+}
+fieldset:nth-of-type(2)::before {
+  background: repeating-linear-gradient(-30deg, var(--lavender) 0 7px, var(--lavender-ink) 7px 14px);
+  left: 40px;
+  transform: rotate(6deg);
+}
+fieldset:nth-of-type(3) {
   transform: rotate(-0.6deg);
-  border-radius: 18px 28px 22px 26px;
+  border-color: var(--mint-ink);
+  border-radius: 30px 20px 16px 28px;
+  background: var(--cream);
 }
+fieldset:nth-of-type(3)::before {
+  background: repeating-linear-gradient(-60deg, var(--mint) 0 6px, var(--mint-ink) 6px 12px);
+  left: 20px;
+  transform: rotate(-8deg);
+}
+fieldset:nth-of-type(4) {
+  transform: rotate(1.1deg);
+  border-color: var(--peach-ink);
+  border-radius: 24px 28px 32px 16px;
+  background: var(--paper);
+}
+fieldset:nth-of-type(4)::before {
+  background: repeating-linear-gradient(-45deg, var(--peach) 0 6px, var(--peach-ink) 6px 12px);
+  left: 36px;
+  transform: rotate(3deg);
+}
+fieldset:nth-of-type(5) {
+  transform: rotate(-1.4deg);
+  border-color: var(--pink);
+  border-radius: 16px 30px 24px 32px;
+  background: var(--paper-2);
+}
+fieldset:nth-of-type(5)::before {
+  background: repeating-linear-gradient(-45deg, var(--lemon) 0 6px, var(--lemon-ink) 6px 12px);
+  left: 28px;
+  transform: rotate(-5deg);
+}
+
 legend {
-  padding: 2px 12px;
-  font-size: 1.2rem;
+  padding: 4px 14px;
+  font-size: 1.3rem;
   font-weight: 700;
   color: var(--pink-hot);
   background: var(--paper);
   border: 3px solid var(--pink-hot);
   border-radius: 14px 18px 12px 16px;
-  box-shadow: 2px 2px 0 var(--pink-soft);
+  box-shadow:
+    2px 2px 0 var(--pink-soft),
+    4px 4px 0 var(--pink-pale);
+  transform: rotate(-2deg);
+  position: relative;
+}
+/* legend 마다 색상 다르게 */
+fieldset:nth-of-type(2) legend {
+  color: var(--lavender-ink);
+  border-color: var(--lavender-ink);
+  box-shadow: 2px 2px 0 var(--lavender);
+  transform: rotate(1.5deg);
+}
+fieldset:nth-of-type(3) legend {
+  color: var(--mint-ink);
+  border-color: var(--mint-ink);
+  box-shadow: 2px 2px 0 var(--mint);
   transform: rotate(-1.5deg);
+}
+fieldset:nth-of-type(4) legend {
+  color: var(--peach-ink);
+  border-color: var(--peach-ink);
+  box-shadow: 2px 2px 0 var(--peach);
+  transform: rotate(2deg);
+}
+fieldset:nth-of-type(5) legend {
+  color: var(--lemon-ink);
+  border-color: var(--lemon-ink);
+  box-shadow: 2px 2px 0 var(--lemon);
+  transform: rotate(-1deg);
 }
 
 fieldset label {
@@ -436,18 +705,30 @@ input[type='range'] {
   border: 2px solid var(--paper);
 }
 .list li {
-  padding: 6px 10px;
-  margin-bottom: 4px;
+  padding: 7px 11px;
+  margin-bottom: 5px;
   border-radius: 12px 16px 10px 14px;
   color: var(--ink-soft);
   background: var(--paper-2);
   border: 2px dashed var(--pink-soft);
   font-variant-numeric: tabular-nums;
+  transform: rotate(-0.3deg);
+  transition: transform 0.15s;
+}
+.list li:nth-child(2n) {
+  transform: rotate(0.4deg);
+}
+.list li:nth-child(3n) {
+  transform: rotate(-0.6deg);
+}
+.list li:hover {
+  transform: rotate(0deg) translateX(2px);
 }
 .list li.has-sound {
   color: var(--pink-hot);
   background: var(--lemon);
   border: 2px dashed var(--pink-hot);
+  box-shadow: 2px 2px 0 var(--pink-pale);
 }
 
 /* ============================================================
@@ -518,16 +799,20 @@ input[type='range'] {
   gap: 6px;
   background: var(--lemon);
   color: var(--ink);
-  border: 2px solid var(--pink-hot);
-  border-radius: 14px;
-  padding: 4px 8px 4px 12px;
-  font-size: 0.95rem;
-  box-shadow: 2px 2px 0 var(--pink-soft);
-  transform: rotate(-1deg);
+  border: 2.5px solid var(--pink-hot);
+  border-radius: 16px 10px 18px 8px;
+  padding: 5px 10px 5px 14px;
+  font-size: 1rem;
+  box-shadow:
+    2px 2px 0 var(--pink-soft),
+    3px 3px 0 var(--pink-pale);
+  transform: rotate(-2deg);
+  filter: url(#crayon-rough);
 }
-.chip:nth-child(even) {
-  transform: rotate(1deg);
-}
+.chip:nth-child(2n)   { transform: rotate(2deg);  background: var(--mint);    border-color: var(--mint-ink); }
+.chip:nth-child(3n)   { transform: rotate(-1deg); background: var(--peach);   border-color: var(--peach-ink); }
+.chip:nth-child(4n)   { transform: rotate(1.5deg); background: var(--lavender); border-color: var(--lavender-ink); }
+.chip:nth-child(5n)   { transform: rotate(-2.5deg); background: var(--lemon); border-color: var(--lemon-ink); }
 .chip button {
   background: var(--pink-hot);
   color: var(--paper);
@@ -591,10 +876,24 @@ input[type='range'] {
 
 .mapping-divider {
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   color: var(--pink-hot);
-  margin: 8px 0 6px;
-  letter-spacing: 0.05em;
+  margin: 14px 0 10px;
+  letter-spacing: 0.1em;
+  position: relative;
+  transform: rotate(-0.8deg);
+  font-family: 'Single Day', 'Gaegu', cursive;
+}
+.mapping-divider::before,
+.mapping-divider::after {
+  content: '';
+  display: inline-block;
+  width: 32px;
+  height: 8px;
+  margin: 0 10px;
+  vertical-align: middle;
+  background:
+    radial-gradient(circle, var(--pink-hot) 1.5px, transparent 2px) 0 0 / 6px 6px repeat-x;
 }
 
 .empty-hint {
@@ -804,7 +1103,22 @@ footer {
   position: relative;
   z-index: 2;
   text-align: center;
-  padding: 24px 20px 30px;
+  padding: 40px 20px 50px;
   color: var(--ink-faded);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
+  font-family: 'Single Day', 'Gaegu', cursive;
+  transform: rotate(-1deg);
+  letter-spacing: 0.05em;
+}
+footer::before,
+footer::after {
+  content: '～';
+  display: inline-block;
+  color: var(--pink-hot);
+  margin: 0 12px;
+  font-size: 1.6rem;
+  animation: wobble 5s ease-in-out infinite;
+}
+footer::after {
+  animation-delay: 2.5s;
 }

@@ -13,39 +13,180 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- SVG 필터: 크레파스 러프 테두리 효과 (feTurbulence + feDisplacementMap) -->
+  <!-- SVG 필터 + 재사용 doodle symbol 들 -->
   <svg class="svg-defs" aria-hidden="true">
     <defs>
+      <!-- 약한 크레파스 러프 -->
       <filter id="crayon-rough" x="-5%" y="-5%" width="110%" height="110%">
         <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="7" />
         <feDisplacementMap in="SourceGraphic" scale="2.5" />
       </filter>
-      <filter id="crayon-rough-strong" x="-5%" y="-5%" width="110%" height="110%">
+      <!-- 강한 러프 (제목 등) -->
+      <filter id="crayon-rough-strong" x="-8%" y="-8%" width="116%" height="116%">
         <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="3" seed="3" />
-        <feDisplacementMap in="SourceGraphic" scale="4" />
+        <feDisplacementMap in="SourceGraphic" scale="5" />
       </filter>
+      <!-- 찢어진 종이 효과 (매우 약한 displacement) -->
+      <filter id="paper-torn" x="-3%" y="-3%" width="106%" height="106%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="2" seed="11" />
+        <feDisplacementMap in="SourceGraphic" scale="3.5" />
+      </filter>
+      <!-- 마커 번짐 (glow) -->
+      <filter id="marker-bleed" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="0.8" />
+      </filter>
+
+      <!-- 재사용 doodle symbols -->
+      <symbol id="doodle-scribble" viewBox="0 0 120 12">
+        <path
+          d="M2,8 Q15,2 28,7 T52,6 T78,8 T108,5 L118,6"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          fill="none"
+        />
+      </symbol>
+      <symbol id="doodle-arrow" viewBox="0 0 80 40">
+        <path
+          d="M5,30 Q20,5 40,20 T75,15"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          fill="none"
+        />
+        <path
+          d="M60,8 L75,15 L65,25"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none"
+        />
+      </symbol>
+      <symbol id="doodle-spiral" viewBox="0 0 60 60">
+        <path
+          d="M30,30 m-2,0 a2,2 0 1,1 4,0 a5,5 0 1,1 -10,0 a9,9 0 1,1 18,0 a13,13 0 1,1 -26,0 a17,17 0 1,1 34,0"
+          stroke="currentColor"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linecap="round"
+        />
+      </symbol>
+      <symbol id="doodle-star" viewBox="0 0 50 50">
+        <path
+          d="M25,5 L30,20 L45,22 L33,33 L37,48 L25,39 L13,48 L17,33 L5,22 L20,20 Z"
+          stroke="currentColor"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-heart-wonky" viewBox="0 0 60 56">
+        <path
+          d="M30,50 C5,30 5,10 20,8 C27,7 30,15 30,15 C30,15 33,6 41,8 C56,10 55,31 30,50 Z"
+          stroke="currentColor"
+          stroke-width="3"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-sun" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="14" stroke="currentColor" stroke-width="3" fill="none" />
+        <g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none">
+          <line x1="40" y1="8"  x2="40" y2="18" />
+          <line x1="40" y1="62" x2="40" y2="72" />
+          <line x1="8"  y1="40" x2="18" y2="40" />
+          <line x1="62" y1="40" x2="72" y2="40" />
+          <line x1="18" y1="18" x2="25" y2="25" />
+          <line x1="55" y1="55" x2="62" y2="62" />
+          <line x1="62" y1="18" x2="55" y2="25" />
+          <line x1="25" y1="55" x2="18" y2="62" />
+        </g>
+      </symbol>
+      <symbol id="doodle-cloud" viewBox="0 0 100 50">
+        <path
+          d="M18,42 Q5,40 8,28 Q10,15 25,18 Q28,5 45,10 Q55,3 65,12 Q80,8 85,22 Q98,24 92,38 Q90,45 78,42 L18,42 Z"
+          stroke="currentColor"
+          stroke-width="3"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-sparkle" viewBox="0 0 40 40">
+        <path
+          d="M20,2 L23,17 L38,20 L23,23 L20,38 L17,23 L2,20 L17,17 Z"
+          stroke="currentColor"
+          stroke-width="2"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-flower" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="7" stroke="currentColor" stroke-width="2.5" fill="none" />
+        <g stroke="currentColor" stroke-width="2.5" fill="none">
+          <ellipse cx="30" cy="12" rx="6" ry="9" />
+          <ellipse cx="30" cy="48" rx="6" ry="9" />
+          <ellipse cx="12" cy="30" rx="9" ry="6" />
+          <ellipse cx="48" cy="30" rx="9" ry="6" />
+        </g>
+      </symbol>
     </defs>
   </svg>
 
-  <!-- 배경 장식: 떠다니는 하트/별 -->
+  <!-- 배경 장식: 손그림 doodle 들을 페이지 전체에 흩뿌린다 -->
   <div class="bg-decor" aria-hidden="true">
-    <span class="floaty heart">♥</span>
-    <span class="floaty star">✦</span>
-    <span class="floaty heart pink">♡</span>
-    <span class="floaty star">✧</span>
-    <span class="floaty heart">♥</span>
-    <span class="floaty dot"></span>
-    <span class="floaty dot"></span>
-    <span class="floaty dot"></span>
+    <svg class="doodle doodle-1" style="color: var(--pink-hot)"><use href="#doodle-spiral" /></svg>
+    <svg class="doodle doodle-2" style="color: var(--lemon-ink)"><use href="#doodle-star" /></svg>
+    <svg class="doodle doodle-3" style="color: var(--mint-ink)"><use href="#doodle-heart-wonky" /></svg>
+    <svg class="doodle doodle-4" style="color: var(--peach-ink)"><use href="#doodle-sparkle" /></svg>
+    <svg class="doodle doodle-5" style="color: var(--pink)"><use href="#doodle-flower" /></svg>
+    <svg class="doodle doodle-6" style="color: var(--lavender-ink)"><use href="#doodle-sun" /></svg>
+    <svg class="doodle doodle-7" style="color: var(--pink-hot)"><use href="#doodle-cloud" /></svg>
+    <svg class="doodle doodle-8" style="color: var(--mint-ink)"><use href="#doodle-spiral" /></svg>
+    <svg class="doodle doodle-9" style="color: var(--peach-ink)"><use href="#doodle-star" /></svg>
+    <svg class="doodle doodle-10" style="color: var(--lavender-ink)"><use href="#doodle-heart-wonky" /></svg>
+    <svg class="doodle doodle-11" style="color: var(--pink-hot)"><use href="#doodle-sparkle" /></svg>
+    <svg class="doodle doodle-12" style="color: var(--lemon-ink)"><use href="#doodle-flower" /></svg>
+    <span class="scribble-text scribble-text-1">몽글몽글 ~</span>
+    <span class="scribble-text scribble-text-2">♡ 서정 ♡</span>
+    <span class="scribble-text scribble-text-3">들어봐 !</span>
   </div>
 
   <header class="site-header">
-    <h1 class="title">
+    <svg class="header-doodle header-doodle-left" style="color: var(--mint-ink)">
+      <use href="#doodle-sun" />
+    </svg>
+    <svg class="header-doodle header-doodle-right" style="color: var(--lavender-ink)">
+      <use href="#doodle-cloud" />
+    </svg>
+    <h1 class="title" data-text="서정월드">
       <span class="title-sparkle">✦</span>
-      서정월드
+      <span class="title-text">서정월드</span>
       <span class="title-sparkle">✦</span>
+      <svg class="title-underline" viewBox="0 0 400 24" preserveAspectRatio="none">
+        <path
+          d="M5,15 Q50,5 100,14 T200,12 T300,15 T395,10"
+          stroke="var(--pink-hot)"
+          stroke-width="5"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <path
+          d="M8,19 Q60,12 120,18 T240,17 T360,14"
+          stroke="var(--lemon-ink)"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+          opacity="0.7"
+        />
+      </svg>
     </h1>
-    <p class="subtitle">카메라에 비친 친구들이 저마다의 노래를 불러줘요 ♡</p>
+    <p class="subtitle">
+      <span class="subtitle-marker">카메라에 비친 친구들이</span>
+      <br />
+      저마다의 노래를 불러줘요
+      <span class="subtitle-heart">♡</span>
+    </p>
   </header>
 
   <main>
