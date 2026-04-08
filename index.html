@@ -110,24 +110,46 @@
         <ul id="detectionList" class="list"></ul>
       </fieldset>
 
-      <fieldset>
-        <legend>♪ 사운드 업로드</legend>
-        <div class="upload-row">
-          <select id="classSelect">
-            <option value="">사물을 골라줘...</option>
-          </select>
-          <label class="file-btn" for="soundFileInput">파일 선택</label>
-          <input type="file" id="soundFileInput" accept="audio/*,video/*" hidden />
-        </div>
+      <fieldset class="mapping-fieldset">
+        <legend>♪ 사운드 매핑</legend>
         <p class="hint">
-          사물별로 mp3/wav/m4a/ogg 또는 비디오 파일을 올려줘요.
-          브라우저에 저장되어 다음에도 기억해요 ♡
+          원하는 사물에만 사운드를 붙여서 들어요. 여러 사물을 묶어 카테고리로
+          만들 수도 있어요 ♡
         </p>
-      </fieldset>
 
-      <fieldset>
-        <legend>♡ 매핑된 사운드</legend>
-        <ul id="soundList" class="list"></ul>
+        <div class="add-form">
+          <input
+            type="text"
+            id="mapName"
+            class="text-input"
+            placeholder="이름 (선택) — 예: 우리 강아지"
+          />
+
+          <div class="class-picker">
+            <select id="classPicker">
+              <option value="">+ 사물 추가하기...</option>
+            </select>
+            <div id="classChips" class="chips"></div>
+          </div>
+
+          <div class="add-actions">
+            <button id="addToneBtn" class="add-btn tone-btn" type="button">
+              ♪ 기본 톤으로 추가
+            </button>
+            <button id="addFileBtn" class="add-btn file-btn-2" type="button">
+              📁 파일로 추가
+            </button>
+            <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
+          </div>
+        </div>
+
+        <div class="mapping-divider">▼ 내가 만든 매핑 ▼</div>
+
+        <ul id="soundList" class="list mapping-list">
+          <li class="empty-hint">
+            위에서 사물을 골라 사운드를 추가해보세요 ♡
+          </li>
+        </ul>
       </fieldset>
     </aside>
   </main>
