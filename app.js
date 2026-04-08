@@ -59,6 +59,36 @@ const intervalSlider = document.getElementById('intervalSlider');
 const intervalValue = document.getElementById('intervalValue');
 const detectionList = document.getElementById('detectionList');
 const soundList = document.getElementById('soundList');
+const classSelect = document.getElementById('classSelect');
+const soundFileInput = document.getElementById('soundFileInput');
+
+// COCO-SSD 의 80개 클래스 — 업로드 UI 의 사물 선택 드롭다운에 사용
+const COCO_CLASSES = [
+  'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
+  'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',
+  'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
+  'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella',
+  'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard',
+  'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
+  'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork',
+  'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
+  'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+  'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv',
+  'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
+  'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
+  'scissors', 'teddy bear', 'hair drier', 'toothbrush',
+];
+
+// 클래스 드롭다운 채우기
+COCO_CLASSES.forEach((cls) => {
+  const opt = document.createElement('option');
+  opt.value = cls;
+  opt.textContent = cls;
+  classSelect.appendChild(opt);
+});
+
+// 사용자가 업로드한 사운드 (label -> { buffer: AudioBuffer, name: string })
+const customSounds = {};
 
 // 슬라이더 값 표시
 confSlider.addEventListener('input', () => {
@@ -71,17 +101,303 @@ intervalSlider.addEventListener('input', () => {
   intervalValue.textContent = intervalSlider.value;
 });
 
-// 매핑된 사운드 목록 표시
+// ---------- IndexedDB: 업로드 사운드 영구 저장 ----------
+const DB_NAME = 'object-sound-db';
+const STORE_NAME = 'sounds';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPut(label, value) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(value, label);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbDelete(label) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(label);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbGetAll() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const result = {};
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        result[cursor.key] = cursor.value;
+        cursor.continue();
+      } else {
+        resolve(result);
+      }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
+}
+
+// AudioContext 보장 (사용자 제스처 안에서 호출되어야 함)
+function ensureAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+  return audioContext;
+}
+
+// 페이지 진입 직후 IndexedDB 에서 사운드 불러오기 (디코딩은 audioContext 생성 후)
+const pendingSoundBuffers = {}; // label -> { arrayBuffer, name }
+
+async function loadSavedSoundsFromDB() {
+  try {
+    const all = await dbGetAll();
+    for (const [label, value] of Object.entries(all)) {
+      pendingSoundBuffers[label] = value;
+    }
+    renderSoundList();
+  } catch (e) {
+    console.error('사운드 DB 로드 실패', e);
+  }
+}
+
+// 보류 중인 ArrayBuffer 들을 audioContext 로 디코딩해서 customSounds 에 옮긴다
+async function decodePendingSounds() {
+  if (!audioContext) return;
+  const labels = Object.keys(pendingSoundBuffers);
+  for (const label of labels) {
+    const { arrayBuffer, name, volume, rate } = pendingSoundBuffers[label];
+    try {
+      // decodeAudioData 는 ArrayBuffer 를 소비하므로 slice 로 복사본 사용
+      const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      customSounds[label] = {
+        buffer,
+        name,
+        volume: volume ?? 1.0,
+        rate: rate ?? 1.0,
+      };
+      delete pendingSoundBuffers[label];
+    } catch (e) {
+      console.error(`'${label}' 디코딩 실패`, e);
+    }
+  }
+  renderSoundList();
+}
+
+// 매핑된 사운드 목록 UI 표시 (기본 톤 + 업로드 사운드 + 편집/삭제)
 function renderSoundList() {
   soundList.innerHTML = '';
-  Object.keys(SOUND_MAP).forEach((label) => {
+
+  const allLabels = new Set([
+    ...Object.keys(SOUND_MAP),
+    ...Object.keys(customSounds),
+    ...Object.keys(pendingSoundBuffers),
+  ]);
+
+  if (allLabels.size === 0) {
     const li = document.createElement('li');
-    li.className = 'has-sound';
-    li.textContent = `♪ ${label}`;
+    li.textContent = '(매핑된 사운드 없음)';
+    soundList.appendChild(li);
+    return;
+  }
+
+  [...allLabels].sort().forEach((label) => {
+    const li = document.createElement('li');
+    li.className = 'has-sound sound-item';
+
+    const custom = customSounds[label] || pendingSoundBuffers[label];
+    const isCustom = !!custom;
+
+    // 첫 줄: 아이콘 + 라벨 + 액션 버튼들
+    const row = document.createElement('div');
+    row.className = 'sound-item-row';
+
+    const span = document.createElement('span');
+    const icon = isCustom ? '🔊' : '♪';
+    span.textContent = isCustom
+      ? `${icon} ${label} — ${custom.name}`
+      : `${icon} ${label}`;
+    row.appendChild(span);
+
+    const actions = document.createElement('span');
+    actions.className = 'sound-actions';
+
+    // 미리듣기 (기본 톤도 미리듣기 가능)
+    const testBtn = document.createElement('button');
+    testBtn.textContent = '▶';
+    testBtn.title = '미리듣기';
+    testBtn.onclick = (e) => {
+      e.stopPropagation();
+      ensureAudioContext();
+      if (Object.keys(pendingSoundBuffers).length > 0) decodePendingSounds();
+      playOne(label);
+    };
+    actions.appendChild(testBtn);
+
+    if (isCustom) {
+      // 편집 토글 (볼륨/속도)
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '⚙';
+      editBtn.title = '볼륨/속도 조정';
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        li.classList.toggle('expanded');
+      };
+      actions.appendChild(editBtn);
+
+      // 삭제
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = '삭제';
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        delete customSounds[label];
+        delete pendingSoundBuffers[label];
+        await dbDelete(label);
+        renderSoundList();
+      };
+      actions.appendChild(delBtn);
+    }
+
+    row.appendChild(actions);
+    li.appendChild(row);
+
+    // 편집 영역: 커스텀 사운드만
+    if (isCustom) {
+      const edit = document.createElement('div');
+      edit.className = 'sound-edit';
+
+      const volume = customSounds[label]?.volume ?? pendingSoundBuffers[label]?.volume ?? 1.0;
+      const rate = customSounds[label]?.rate ?? pendingSoundBuffers[label]?.rate ?? 1.0;
+
+      // 볼륨
+      const volLabel = document.createElement('label');
+      volLabel.innerHTML = `볼륨 <span class="val">${volume.toFixed(2)}</span>`;
+      const volSlider = document.createElement('input');
+      volSlider.type = 'range';
+      volSlider.min = '0';
+      volSlider.max = '2';
+      volSlider.step = '0.05';
+      volSlider.value = String(volume);
+      volSlider.oninput = async () => {
+        const v = parseFloat(volSlider.value);
+        volLabel.querySelector('.val').textContent = v.toFixed(2);
+        if (customSounds[label]) customSounds[label].volume = v;
+        if (pendingSoundBuffers[label]) pendingSoundBuffers[label].volume = v;
+        await persistSoundOptions(label);
+      };
+      volLabel.appendChild(volSlider);
+      edit.appendChild(volLabel);
+
+      // 재생 속도 (피치도 함께 변함)
+      const rateLabel = document.createElement('label');
+      rateLabel.innerHTML = `재생 속도 <span class="val">${rate.toFixed(2)}x</span>`;
+      const rateSlider = document.createElement('input');
+      rateSlider.type = 'range';
+      rateSlider.min = '0.25';
+      rateSlider.max = '3';
+      rateSlider.step = '0.05';
+      rateSlider.value = String(rate);
+      rateSlider.oninput = async () => {
+        const r = parseFloat(rateSlider.value);
+        rateLabel.querySelector('.val').textContent = `${r.toFixed(2)}x`;
+        if (customSounds[label]) customSounds[label].rate = r;
+        if (pendingSoundBuffers[label]) pendingSoundBuffers[label].rate = r;
+        await persistSoundOptions(label);
+      };
+      rateLabel.appendChild(rateSlider);
+      edit.appendChild(rateLabel);
+
+      li.appendChild(edit);
+    }
+
     soundList.appendChild(li);
   });
 }
-renderSoundList();
+
+// 볼륨/속도만 IndexedDB 에 다시 저장 (ArrayBuffer 는 그대로 유지)
+async function persistSoundOptions(label) {
+  try {
+    const all = await dbGetAll();
+    const existing = all[label];
+    if (!existing) return;
+    const volume = customSounds[label]?.volume ?? pendingSoundBuffers[label]?.volume ?? 1.0;
+    const rate = customSounds[label]?.rate ?? pendingSoundBuffers[label]?.rate ?? 1.0;
+    await dbPut(label, { ...existing, volume, rate });
+  } catch (e) {
+    console.error('옵션 저장 실패', e);
+  }
+}
+
+// 업로드 처리
+soundFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const label = classSelect.value;
+  if (!label) {
+    alert('먼저 사물을 선택하세요.');
+    soundFileInput.value = '';
+    return;
+  }
+
+  try {
+    ensureAudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    // 디코딩은 슬라이스 사본으로 (원본은 IndexedDB 저장용)
+    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    // 같은 라벨에 이미 매핑이 있으면 볼륨/속도 유지, 없으면 기본값 1.0
+    const prevVolume = customSounds[label]?.volume ?? 1.0;
+    const prevRate = customSounds[label]?.rate ?? 1.0;
+    customSounds[label] = {
+      buffer,
+      name: file.name,
+      volume: prevVolume,
+      rate: prevRate,
+    };
+    await dbPut(label, {
+      arrayBuffer,
+      name: file.name,
+      volume: prevVolume,
+      rate: prevRate,
+    });
+    statusEl.textContent = `'${label}' ← ${file.name} 매핑 완료`;
+    renderSoundList();
+  } catch (err) {
+    console.error(err);
+    alert(`사운드 로드 실패: ${err.message}`);
+  } finally {
+    soundFileInput.value = '';
+  }
+});
+
+// 페이지 로드 시 저장된 사운드 불러오기
+loadSavedSoundsFromDB();
+
+// 사물에 사운드가 매핑되어 있는지 (커스텀 우선, 없으면 기본 톤)
+function hasSound(label) {
+  return customSounds[label] != null || SOUND_MAP[label] != null;
+}
 
 // 한 번의 톤 재생 (오실레이터 + 짧은 envelope)
 function playTone(label) {
@@ -103,6 +419,32 @@ function playTone(label) {
   osc.stop(now + TONE_DURATION);
 }
 
+// 업로드된 사운드 재생 (AudioBufferSourceNode — 동시 재생 가능)
+// 볼륨(GainNode)과 재생 속도(playbackRate)를 사용자 설정값으로 적용
+function playCustom(label) {
+  if (!audioContext || !customSounds[label]) return;
+  const { buffer, volume, rate } = customSounds[label];
+
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = rate ?? 1.0;
+
+  const gain = audioContext.createGain();
+  gain.gain.value = volume ?? 1.0;
+
+  source.connect(gain).connect(audioContext.destination);
+  source.start();
+}
+
+// 라벨 1개 재생: 커스텀이 있으면 커스텀, 없으면 기본 톤
+function playOne(label) {
+  if (customSounds[label]) {
+    playCustom(label);
+  } else if (SOUND_MAP[label]) {
+    playTone(label);
+  }
+}
+
 // 감지된 라벨에 대해 모드/쿨다운에 따라 사운드 재생
 function playSounds(labels) {
   const now = performance.now() / 1000;
@@ -112,18 +454,18 @@ function playSounds(labels) {
   if (multiModeEl.checked) {
     // 다중 모드: 감지된 모든 매핑 사물의 사운드를 병렬 재생
     unique.forEach((label) => {
-      if (!SOUND_MAP[label]) return;
+      if (!hasSound(label)) return;
       if (now - (lastPlayed[label] || 0) < cd) return;
-      playTone(label);
+      playOne(label);
       lastPlayed[label] = now;
     });
   } else {
     // 단일 모드: 직전 사운드가 끝났을 때만 1개 재생
     if (now - (lastPlayed.__last__ || 0) < TONE_DURATION) return;
     for (const label of unique) {
-      if (!SOUND_MAP[label]) continue;
+      if (!hasSound(label)) continue;
       if (now - (lastPlayed[label] || 0) < cd) continue;
-      playTone(label);
+      playOne(label);
       lastPlayed[label] = now;
       lastPlayed.__last__ = now;
       break;
@@ -184,8 +526,7 @@ function drawDetections(predictions) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   predictions.forEach((p) => {
     const [x, y, w, h] = p.bbox;
-    const hasSound = SOUND_MAP[p.class] != null;
-    const color = hasSound ? '#6acc6a' : '#ffcc4a';
+    const color = hasSound(p.class) ? '#6acc6a' : '#ffcc4a';
 
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
@@ -211,9 +552,9 @@ function updateDetectionList(predictions) {
   }
   predictions.forEach((p) => {
     const li = document.createElement('li');
-    const hasSound = SOUND_MAP[p.class] != null;
-    if (hasSound) li.className = 'has-sound';
-    li.textContent = `${hasSound ? '♪' : ' '} ${p.class}  (${(p.score * 100).toFixed(0)}%)`;
+    const has = hasSound(p.class);
+    if (has) li.className = 'has-sound';
+    li.textContent = `${has ? '♪' : ' '} ${p.class}  (${(p.score * 100).toFixed(0)}%)`;
     detectionList.appendChild(li);
   });
 }
@@ -288,11 +629,12 @@ startBtn.addEventListener('click', async () => {
 
   try {
     // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
-    if (!audioContext) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume();
+    ensureAudioContext();
+
+    // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
+    if (Object.keys(pendingSoundBuffers).length > 0) {
+      overlayMessage.textContent = '저장된 사운드 디코딩 중...';
+      await decodePendingSounds();
     }
 
     if (!model) {

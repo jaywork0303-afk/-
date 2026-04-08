@@ -187,6 +187,103 @@ input[type='range'] {
   color: #6acc6a;
 }
 
+/* 업로드 UI */
+.upload-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.upload-row select {
+  flex: 1;
+  background: #1a1a25;
+  color: #e8e8ea;
+  border: 1px solid #2a2a35;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+.file-btn {
+  background: #4a7eff;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.file-btn:hover {
+  background: #5a8eff;
+}
+
+/* 매핑된 사운드 항목 */
+.sound-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+.sound-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.sound-item-row > span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sound-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.sound-actions button {
+  background: #1a1a25;
+  color: #e8e8ea;
+  border: 1px solid #2a2a35;
+  border-radius: 3px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.sound-actions button:hover {
+  background: #2a2a35;
+  border-color: #4a7eff;
+}
+.sound-edit {
+  background: #0e0e16;
+  border: 1px solid #2a2a35;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 0.78rem;
+  display: none;
+}
+.sound-item.expanded .sound-edit {
+  display: block;
+}
+.sound-edit label {
+  display: block;
+  margin-bottom: 6px;
+  color: #aaa;
+}
+.sound-edit label:last-child {
+  margin-bottom: 0;
+}
+.sound-edit input[type='range'] {
+  width: 100%;
+  margin-top: 2px;
+}
+.sound-edit .val {
+  color: #4a7eff;
+}
+
 footer {
   text-align: center;
   padding: 16px;
