@@ -1,0 +1,12 @@
+{
+  "person": "sounds/person.wav",
+  "cell phone": "sounds/phone.wav",
+  "cup": "sounds/cup.wav",
+  "book": "sounds/book.wav",
+  "bottle": "sounds/bottle.wav",
+  "laptop": "sounds/laptop.wav",
+  "keyboard": "sounds/keyboard.wav",
+  "mouse": "sounds/mouse.wav",
+  "scissors": "sounds/scissors.wav",
+  "remote": "sounds/remote.wav"
+}
