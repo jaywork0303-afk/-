@@ -119,14 +119,31 @@ function playSounds(labels) {
 }
 
 async function loadModel() {
+  // WebGL 백엔드 강제 — CPU 백엔드면 매우 느림
+  statusEl.textContent = 'GPU 백엔드 초기화 중...';
+  try {
+    await tf.setBackend('webgl');
+  } catch (e) {
+    console.warn('WebGL 백엔드 사용 불가, CPU 폴백', e);
+  }
+  await tf.ready();
+  console.log('TF backend:', tf.getBackend());
+
   statusEl.textContent = '모델 로딩 중... (최초 1회)';
-  model = await cocoSsd.load();
-  statusEl.textContent = '모델 로드 완료';
+  // lite_mobilenet_v2: 가장 가벼운 변형, 기본 모델 대비 약 3배 빠름
+  model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+  statusEl.textContent = `모델 로드 완료 (${tf.getBackend()})`;
 }
 
 async function startCamera() {
+  // 해상도를 낮추면 추론 속도가 크게 빨라짐 (입력 텐서가 작아짐)
   stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+    video: {
+      facingMode: 'user',
+      width: { ideal: 480 },
+      height: { ideal: 360 },
+      frameRate: { ideal: 30 },
+    },
     audio: false,
   });
   video.srcObject = stream;
@@ -187,22 +204,38 @@ function updateDetectionList(predictions) {
   });
 }
 
-async function detectionLoop() {
-  while (running) {
-    try {
-      const predictions = await model.detect(video);
-      const conf = parseFloat(confSlider.value);
-      const filtered = predictions.filter((p) => p.score >= conf);
+// 추론 FPS 계산용
+let frameCount = 0;
+let lastFpsTime = 0;
 
-      drawDetections(filtered);
-      updateDetectionList(filtered);
-      playSounds(filtered.map((p) => p.class));
-    } catch (e) {
-      console.error('detection error', e);
+async function detectionLoop() {
+  if (!running) return;
+
+  try {
+    // model.detect 의 두 번째 인자는 maxNumBoxes (기본 20). 줄이면 후처리가 빨라짐
+    const predictions = await model.detect(video, 10);
+    const conf = parseFloat(confSlider.value);
+    const filtered = predictions.filter((p) => p.score >= conf);
+
+    drawDetections(filtered);
+    updateDetectionList(filtered);
+    playSounds(filtered.map((p) => p.class));
+
+    // FPS 표시 (1초마다 갱신)
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsTime >= 1000) {
+      const fps = (frameCount * 1000) / (now - lastFpsTime);
+      statusEl.textContent = `실행 중 — ${fps.toFixed(1)} FPS`;
+      frameCount = 0;
+      lastFpsTime = now;
     }
-    // 다른 작업에 양보 (~10fps)
-    await new Promise((r) => setTimeout(r, 80));
+  } catch (e) {
+    console.error('detection error', e);
   }
+
+  // requestAnimationFrame: 브라우저가 페인트와 동기화해 부드럽게 처리
+  requestAnimationFrame(detectionLoop);
 }
 
 startBtn.addEventListener('click', async () => {
@@ -240,6 +273,8 @@ startBtn.addEventListener('click', async () => {
     running = true;
     startBtn.textContent = '■ 정지';
     statusEl.textContent = '실행 중';
+    frameCount = 0;
+    lastFpsTime = performance.now();
     detectionLoop();
   } catch (e) {
     console.error(e);
