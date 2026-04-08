@@ -377,16 +377,20 @@ async function persistSoundOptions(label) {
 
 // 업로드 처리
 // ArrayBuffer 를 HTMLMediaElement (Audio) 로 재생 가능한지 검증하고
-// 재생용 blob URL + duration 을 반환. 실패하면 에러 throw.
+// 재사용 가능한 element + blob URL + duration 을 반환. 실패하면 에러 throw.
 // 비디오 파일이나 Web Audio API 가 디코드 못 하는 포맷에 대한 폴백 경로.
+// 핵심: element 를 재사용해야 iOS/모바일의 동시 미디어 엘리먼트 제한을
+// 회피할 수 있음. 매 재생마다 새 element 를 만들면 2~3회 이후 무음이 됨.
 async function probeAsMediaElement(arrayBuffer, mimeType) {
   const blob = new Blob([arrayBuffer], { type: mimeType || 'audio/mpeg' });
   const url = URL.createObjectURL(blob);
-  const probe = document.createElement('audio');
-  probe.preload = 'metadata';
-  probe.src = url;
+  const el = document.createElement('audio');
+  el.preload = 'auto';
+  el.src = url;
 
   try {
+    // canplaythrough / loadeddata 까지 기다려서 duration 을 정확히 얻는다
+    // (loadedmetadata 만으론 일부 비디오 컨테이너에서 duration 이 Infinity)
     await new Promise((resolve, reject) => {
       let settled = false;
       const ok = () => {
@@ -399,15 +403,23 @@ async function probeAsMediaElement(arrayBuffer, mimeType) {
         settled = true;
         reject(new Error(msg));
       };
-      probe.onloadedmetadata = ok;
-      probe.oncanplay = ok;
-      probe.onerror = () => fail('이 파일은 브라우저가 재생할 수 없는 형식입니다');
-      setTimeout(() => fail('파일 로딩 시간 초과'), 5000);
+      el.oncanplaythrough = ok;
+      el.onloadeddata = ok;
+      el.onerror = () => fail('이 파일은 브라우저가 재생할 수 없는 형식입니다');
+      // 5초 안에 canplaythrough 가 안 와도 진행 (메타데이터만 있어도 플레이는 가능)
+      setTimeout(() => {
+        if (el.readyState >= 1) ok();
+        else fail('파일 로딩 시간 초과');
+      }, 5000);
+      el.load();
     });
-    const duration = Number.isFinite(probe.duration) && probe.duration > 0
-      ? probe.duration
-      : 1.0;
-    return { url, duration };
+
+    let duration = el.duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      // 일부 비디오 컨테이너는 duration 을 알 수 없음 → 재생 중 실시간 측정 fallback
+      duration = 0;
+    }
+    return { el, url, duration };
   } catch (e) {
     URL.revokeObjectURL(url);
     throw e;
@@ -433,8 +445,15 @@ async function createCustomSoundEntry(arrayBuffer, mimeType, name) {
 
   // 2) HTMLMediaElement 폴백 (비디오/컨테이너 포맷 등)
   try {
-    const { url, duration } = await probeAsMediaElement(arrayBuffer, mimeType);
-    return { kind: 'element', blobUrl: url, duration, name, mimeType };
+    const { el, url, duration } = await probeAsMediaElement(arrayBuffer, mimeType);
+    return {
+      kind: 'element',
+      mediaElement: el, // 재사용되는 단일 엘리먼트
+      blobUrl: url,
+      duration,
+      name,
+      mimeType,
+    };
   } catch (elemErr) {
     throw new Error(
       `디코딩 실패: ${elemErr.message}\n` +
@@ -624,30 +643,45 @@ function playCustom(label, multiplier = 1.0) {
   }
 
   // 2) HTMLMediaElement 경로 (element) — 비디오 파일 / 폴백 포맷
-  // 동시 재생을 위해 매번 새 Audio 요소를 blob URL 로부터 생성한다.
+  // 엔트리당 단일 Audio 엘리먼트를 재사용 → iOS 의 동시 미디어 제한 회피
+  // + 메모리 누수/GC 로 인한 무음 현상 방지. 되감기 후 play() 만 호출.
   if (entry.kind === 'element') {
-    const el = document.createElement('audio');
-    el.src = entry.blobUrl;
-    el.preload = 'auto';
+    const el = entry.mediaElement;
+    if (!el) return 0;
+
     // HTMLMediaElement.volume 은 0~1 클램프 — multiplier 가 1 초과여도 1로 제한
     el.volume = Math.max(0, Math.min(1, volume * multiplier));
     el.playbackRate = rate;
+    try {
+      el.currentTime = 0; // 되감기 → 항상 처음부터 재생
+    } catch (_) {
+      /* seek 실패 무시 */
+    }
 
     activeElements.add(el);
-    const cleanup = () => {
-      activeElements.delete(el);
+    // onended 는 재사용되므로 매 재생마다 갱신. 종료 시 playingUntil 정리.
+    el.onended = () => {
       if ((playingUntil[label] ?? 0) <= performance.now() / 1000 + 0.05) {
         delete playingUntil[label];
       }
     };
-    el.onended = cleanup;
-    el.onerror = cleanup;
 
-    el.play().catch((e) => {
-      console.error('element 재생 실패', e);
-      cleanup();
-    });
-    return (entry.duration || 1) / rate;
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch((e) => {
+        console.error('element 재생 실패', e);
+        delete playingUntil[label];
+      });
+    }
+
+    // 엔트리에 저장된 duration 을 우선 사용하되, 재생 중이면 실시간 el.duration 도 확인
+    const realDuration =
+      Number.isFinite(el.duration) && el.duration > 0
+        ? el.duration
+        : entry.duration;
+    // duration 을 모를 때 (0) 는 1초로 가정 → onended 가 실제 종료 시 정리
+    const effective = realDuration > 0 ? realDuration : 1.0;
+    return effective / rate;
   }
 
   return 0;
@@ -681,6 +715,7 @@ function stopAllSounds() {
   }
   activeSources.clear();
 
+  // element 들은 재사용되므로 정지만 하고 Set 에서만 제거
   for (const el of activeElements) {
     try {
       el.pause();

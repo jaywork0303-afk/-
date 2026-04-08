@@ -3,15 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>사물 인식 사운드 플레이어</title>
+  <title>서정월드 ♥ 사물 인식 사운드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Single+Day&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>사물 인식 사운드 플레이어</h1>
-    <p class="subtitle">
-      카메라로 사물을 인식하면 각 사물별 고유 사운드를 실시간으로 재생합니다
-    </p>
+  <!-- SVG 필터: 크레파스 러프 테두리 효과 (feTurbulence + feDisplacementMap) -->
+  <svg class="svg-defs" aria-hidden="true">
+    <defs>
+      <filter id="crayon-rough" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="7" />
+        <feDisplacementMap in="SourceGraphic" scale="2.5" />
+      </filter>
+      <filter id="crayon-rough-strong" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="3" seed="3" />
+        <feDisplacementMap in="SourceGraphic" scale="4" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- 배경 장식: 떠다니는 하트/별 -->
+  <div class="bg-decor" aria-hidden="true">
+    <span class="floaty heart">♥</span>
+    <span class="floaty star">✦</span>
+    <span class="floaty heart pink">♡</span>
+    <span class="floaty star">✧</span>
+    <span class="floaty heart">♥</span>
+    <span class="floaty dot"></span>
+    <span class="floaty dot"></span>
+    <span class="floaty dot"></span>
+  </div>
+
+  <header class="site-header">
+    <h1 class="title">
+      <span class="title-sparkle">✦</span>
+      서정월드
+      <span class="title-sparkle">✦</span>
+    </h1>
+    <p class="subtitle">카메라에 비친 친구들이 저마다의 노래를 불러줘요 ♡</p>
   </header>
 
   <main>
@@ -27,27 +61,27 @@
         🔄
       </button>
       <div id="overlayMessage" class="overlay-message">
-        시작 버튼을 눌러 카메라를 켜세요
+        ▶ 시작 버튼을 눌러줘 !
       </div>
     </section>
 
     <aside class="controls">
       <button id="startBtn" class="primary">▶ 시작</button>
 
-      <div id="status" class="status">대기 중</div>
+      <div id="status" class="status">대기 중이야 ~</div>
 
       <fieldset>
-        <legend>재생 모드</legend>
+        <legend>♡ 재생 모드</legend>
         <label class="check">
           <input type="checkbox" id="multiMode" checked />
           <span>다중 사물 동시 재생</span>
         </label>
-        <p class="hint">끄면 한 번에 한 사운드만 재생됩니다</p>
+        <p class="hint">끄면 한 번에 한 사운드만 나와요</p>
         <label class="check" style="margin-top: 8px;">
           <input type="checkbox" id="distanceMode" />
           <span>사람 기준 거리 볼륨</span>
         </label>
-        <p class="hint">사람에게 가까운 사물일수록 더 큰 소리로 재생됩니다</p>
+        <p class="hint">사람과 가까운 친구는 더 큰 소리로 불러요 ♪</p>
         <label>
           감쇠 강도 <span class="val" id="falloffValue">2.0</span>
           <input type="range" id="falloffSlider" min="0.5" max="5" step="0.1" value="2.0" />
@@ -55,7 +89,7 @@
       </fieldset>
 
       <fieldset>
-        <legend>설정</legend>
+        <legend>✦ 설정</legend>
         <label>
           신뢰도 임계값 <span class="val" id="confValue">0.50</span>
           <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5" />
@@ -68,39 +102,38 @@
           추론 간격 (ms) <span class="val" id="intervalValue">120</span>
           <input type="range" id="intervalSlider" min="50" max="500" step="10" value="120" />
         </label>
-        <p class="hint">값을 늘리면 영상이 더 부드러워지고, 줄이면 박스가 더 빠르게 갱신됩니다</p>
+        <p class="hint">값을 늘리면 영상이 더 부드러워져요</p>
       </fieldset>
 
       <fieldset>
-        <legend>감지 중인 사물</legend>
+        <legend>♥ 지금 보이는 친구들</legend>
         <ul id="detectionList" class="list"></ul>
       </fieldset>
 
       <fieldset>
-        <legend>사운드 업로드</legend>
+        <legend>♪ 사운드 업로드</legend>
         <div class="upload-row">
           <select id="classSelect">
-            <option value="">사물 선택...</option>
+            <option value="">사물을 골라줘...</option>
           </select>
           <label class="file-btn" for="soundFileInput">파일 선택</label>
           <input type="file" id="soundFileInput" accept="audio/*,video/*" hidden />
         </div>
         <p class="hint">
-          사물별로 mp3/wav/m4a/ogg 파일을 매핑하세요. 비디오 파일도 오디오
-          트랙만 재생됩니다. 브라우저(IndexedDB)에 저장되어 다음 방문에도
-          유지됩니다.
+          사물별로 mp3/wav/m4a/ogg 또는 비디오 파일을 올려줘요.
+          브라우저에 저장되어 다음에도 기억해요 ♡
         </p>
       </fieldset>
 
       <fieldset>
-        <legend>매핑된 사운드</legend>
+        <legend>♡ 매핑된 사운드</legend>
         <ul id="soundList" class="list"></ul>
       </fieldset>
     </aside>
   </main>
 
   <footer>
-    TensorFlow.js · COCO-SSD · Web Audio API
+    made with ♡ · 서정월드
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>

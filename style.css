@@ -1,56 +1,206 @@
-* { box-sizing: border-box; }
+/* ============================================================
+   서정월드 — 크레파스 손그림 핑크 테마
+   ============================================================ */
 
+:root {
+  --bg: #ffeef3;
+  --bg-grad-1: #ffe0eb;
+  --bg-grad-2: #ffd6e8;
+  --ink: #4a2838;
+  --ink-soft: #7a4458;
+  --ink-faded: #a87788;
+  --paper: #fff8fb;
+  --paper-2: #ffeef5;
+  --pink: #ff5c9c;
+  --pink-hot: #ff2e7e;
+  --pink-soft: #ffb6cf;
+  --pink-pale: #ffd9e6;
+  --lemon: #fff2a8;
+  --mint: #b8f0d8;
+  --peach: #ffd4b8;
+  --shadow: rgba(255, 46, 126, 0.18);
+  --shadow-strong: rgba(255, 46, 126, 0.32);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo',
-    'Noto Sans KR', sans-serif;
-  background: #0f0f14;
-  color: #e8e8ea;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  padding: 0;
 }
 
-header {
-  text-align: center;
-  padding: 20px 16px 16px;
-  border-bottom: 1px solid #2a2a35;
+body {
+  font-family: 'Gaegu', 'Single Day', 'Apple SD Gothic Neo', 'Noto Sans KR',
+    cursive, sans-serif;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle at 12% 18%, var(--bg-grad-1) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, var(--bg-grad-2) 0%, transparent 50%),
+    /* 크레파스 질감 */
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 2px,
+      rgba(255, 182, 207, 0.12) 2px 3px
+    ),
+    var(--bg);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
 }
-header h1 {
+
+/* SVG 필터 정의 숨김 */
+.svg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ============================================================
+   배경 장식 — 떠다니는 하트/별
+   ============================================================ */
+.bg-decor {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.floaty {
+  position: absolute;
+  font-size: 2rem;
+  color: var(--pink-soft);
+  opacity: 0.55;
+  animation: float 12s ease-in-out infinite;
+  user-select: none;
+}
+.floaty.heart {
+  color: var(--pink);
+}
+.floaty.heart.pink {
+  color: var(--pink-hot);
+}
+.floaty.star {
+  color: var(--lemon);
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 2px var(--pink-soft));
+}
+.floaty.dot {
+  width: 14px;
+  height: 14px;
+  background: var(--pink-pale);
+  border-radius: 50%;
+  border: 2px solid var(--pink-soft);
+}
+.floaty:nth-child(1) { top: 8%;  left: 6%;  animation-delay: 0s;   font-size: 2.2rem; }
+.floaty:nth-child(2) { top: 18%; right: 10%; animation-delay: 1.2s; }
+.floaty:nth-child(3) { top: 45%; left: 4%;  animation-delay: 2.4s; font-size: 2.5rem; }
+.floaty:nth-child(4) { top: 60%; right: 6%;  animation-delay: 3.6s; }
+.floaty:nth-child(5) { bottom: 12%; left: 14%; animation-delay: 4.8s; font-size: 1.8rem; }
+.floaty:nth-child(6) { top: 28%; left: 50%; animation-delay: 1.8s; }
+.floaty:nth-child(7) { bottom: 25%; right: 24%; animation-delay: 3s; }
+.floaty:nth-child(8) { top: 72%; left: 32%; animation-delay: 5.4s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-18px) rotate(4deg); }
+}
+
+/* ============================================================
+   헤더 — 서정월드 타이틀
+   ============================================================ */
+.site-header {
+  text-align: center;
+  padding: 32px 20px 20px;
+  position: relative;
+  z-index: 2;
+}
+.title {
   margin: 0;
-  font-size: 1.4rem;
-  letter-spacing: -0.01em;
+  font-size: 3.4rem;
+  font-weight: 700;
+  color: var(--pink-hot);
+  letter-spacing: 0.05em;
+  text-shadow:
+    3px 3px 0 var(--pink-pale),
+    4px 4px 0 var(--pink-soft),
+    5px 5px 10px var(--shadow);
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  transform: rotate(-2deg);
+  filter: url(#crayon-rough);
+}
+.title-sparkle {
+  font-size: 2rem;
+  color: var(--lemon);
+  text-shadow: 2px 2px 0 var(--pink);
+  animation: sparkle 2s ease-in-out infinite;
+  display: inline-block;
+}
+.title-sparkle:nth-child(3) {
+  animation-delay: 1s;
+}
+@keyframes sparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50%      { transform: scale(1.3) rotate(18deg); }
 }
 .subtitle {
-  margin: 6px 0 0;
-  color: #888;
-  font-size: 0.85rem;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+  transform: rotate(0.5deg);
 }
 
+/* ============================================================
+   메인 레이아웃
+   ============================================================ */
 main {
-  flex: 1;
+  position: relative;
+  z-index: 2;
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  padding: 20px 28px 40px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
 }
-
 @media (max-width: 820px) {
   main {
     grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 16px 18px 30px;
+  }
+  .title {
+    font-size: 2.6rem;
+  }
+  .subtitle {
+    font-size: 1.05rem;
   }
 }
 
+/* ============================================================
+   비디오 컨테이너
+   ============================================================ */
 .video-container {
   position: relative;
-  background: #000;
-  border-radius: 10px;
+  background: var(--paper);
+  border-radius: 26px 18px 32px 20px;
   overflow: hidden;
   aspect-ratio: 4 / 3;
-  border: 1px solid #2a2a35;
+  border: 4px solid var(--pink-hot);
+  box-shadow:
+    6px 6px 0 var(--pink-pale),
+    10px 10px 0 var(--pink-soft),
+    14px 14px 24px var(--shadow);
+  transform: rotate(-0.8deg);
+  filter: url(#crayon-rough);
 }
 #video,
 #overlay {
@@ -59,47 +209,15 @@ main {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* 자체 합성 레이어로 분리해 추론으로 메인 스레드가 바빠도 GPU 가 페인트 처리 */
   will-change: transform;
   backface-visibility: hidden;
 }
 #overlay {
   pointer-events: none;
 }
-/* 좌우반전 해제: video 와 overlay 둘 다 뒤집어야 박스 좌표가 맞음 */
 .video-container.unflip #video,
 .video-container.unflip #overlay {
   transform: scaleX(-1);
-}
-
-/* 카메라 전환 버튼 (영상 영역 오른쪽 위 오버레이) */
-.cam-switch-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 10;
-  background: rgba(20, 20, 30, 0.75);
-  border: 1px solid #4a7eff;
-  color: #e8e8ea;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  font-size: 1.1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(8px);
-  transition: background 0.15s, transform 0.15s;
-}
-.cam-switch-btn:hover {
-  background: rgba(74, 126, 255, 0.6);
-  transform: rotate(180deg);
-}
-.cam-switch-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
 }
 .overlay-message {
   position: absolute;
@@ -107,69 +225,151 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
-  font-size: 0.95rem;
+  color: var(--pink-hot);
+  background: rgba(255, 248, 251, 0.85);
+  font-size: 1.4rem;
   text-align: center;
   padding: 20px;
+  text-shadow: 2px 2px 0 var(--pink-pale);
 }
 .overlay-message.hidden {
   display: none;
 }
 
+/* 카메라 전환 버튼 */
+.cam-switch-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  background: var(--paper);
+  border: 3px solid var(--pink-hot);
+  color: var(--pink-hot);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    3px 3px 0 var(--pink-soft),
+    5px 5px 10px var(--shadow);
+  transition: transform 0.2s;
+}
+.cam-switch-btn:hover {
+  background: var(--pink-pale);
+  transform: rotate(180deg) scale(1.08);
+}
+.cam-switch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================================
+   우측 컨트롤 패널
+   ============================================================ */
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
 }
 
 button.primary {
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  background: #4a7eff;
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1.45rem;
+  padding: 14px 20px;
+  border: 4px solid var(--pink-hot);
+  border-radius: 22px 14px 26px 16px;
+  background: var(--pink);
+  color: var(--paper);
+  text-shadow: 2px 2px 0 var(--pink-hot);
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow:
+    4px 4px 0 var(--pink-soft),
+    6px 6px 0 var(--pink-pale),
+    8px 8px 14px var(--shadow);
+  transform: rotate(-1deg);
+  transition: transform 0.15s, box-shadow 0.15s;
+  filter: url(#crayon-rough);
 }
 button.primary:hover {
-  background: #5a8eff;
+  transform: rotate(-1deg) translate(-2px, -2px);
+  box-shadow:
+    6px 6px 0 var(--pink-soft),
+    9px 9px 0 var(--pink-pale),
+    12px 12px 18px var(--shadow);
+}
+button.primary:active {
+  transform: rotate(-1deg) translate(2px, 2px);
+  box-shadow:
+    2px 2px 0 var(--pink-soft),
+    3px 3px 0 var(--pink-pale),
+    4px 4px 8px var(--shadow);
 }
 button.primary:disabled {
-  background: #2a2a35;
-  color: #666;
+  background: var(--pink-pale);
+  color: var(--ink-faded);
   cursor: not-allowed;
 }
 
 .status {
-  padding: 8px 12px;
-  background: #1a1a25;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: #aaa;
-  border: 1px solid #2a2a35;
+  padding: 10px 16px;
+  background: var(--lemon);
+  border: 3px solid var(--ink);
+  border-radius: 16px 22px 14px 20px;
+  font-size: 1.05rem;
+  color: var(--ink);
+  box-shadow: 3px 3px 0 var(--pink-soft);
+  transform: rotate(0.5deg);
+  text-align: center;
+  filter: url(#crayon-rough);
 }
 
+/* ============================================================
+   Fieldset — 손으로 그린 종이 카드
+   ============================================================ */
 fieldset {
-  border: 1px solid #2a2a35;
-  border-radius: 8px;
-  padding: 12px 14px;
+  border: 4px solid var(--pink);
+  border-radius: 22px 28px 18px 26px;
+  padding: 16px 18px 14px;
   margin: 0;
-  background: #14141c;
+  background: var(--paper);
+  box-shadow:
+    4px 4px 0 var(--pink-pale),
+    6px 6px 14px var(--shadow);
+  position: relative;
+  filter: url(#crayon-rough);
+}
+fieldset:nth-of-type(odd) {
+  transform: rotate(0.6deg);
+  border-color: var(--pink-hot);
+  border-radius: 26px 18px 28px 20px;
+}
+fieldset:nth-of-type(even) {
+  transform: rotate(-0.6deg);
+  border-radius: 18px 28px 22px 26px;
 }
 legend {
-  padding: 0 6px;
-  font-size: 0.8rem;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  padding: 2px 12px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--pink-hot);
+  background: var(--paper);
+  border: 3px solid var(--pink-hot);
+  border-radius: 14px 18px 12px 16px;
+  box-shadow: 2px 2px 0 var(--pink-soft);
+  transform: rotate(-1.5deg);
 }
+
 fieldset label {
   display: block;
-  margin-bottom: 10px;
-  font-size: 0.88rem;
-  color: #ccc;
+  margin-bottom: 12px;
+  font-size: 1.05rem;
+  color: var(--ink);
 }
 fieldset label:last-child {
   margin-bottom: 0;
@@ -177,122 +377,183 @@ fieldset label:last-child {
 .check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+.check input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--pink-hot);
   cursor: pointer;
 }
 .hint {
-  margin: 6px 0 0;
-  color: #666;
-  font-size: 0.78rem;
+  margin: 6px 0 4px;
+  color: var(--ink-faded);
+  font-size: 0.95rem;
+  font-style: italic;
 }
 .val {
   float: right;
-  color: #4a7eff;
+  color: var(--pink-hot);
   font-variant-numeric: tabular-nums;
+  background: var(--lemon);
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  font-size: 0.95rem;
 }
+
+/* Range 슬라이더 — 크레파스 느낌 */
 input[type='range'] {
   width: 100%;
   margin-top: 6px;
-  accent-color: #4a7eff;
+  accent-color: var(--pink-hot);
+  height: 8px;
 }
 
+/* ============================================================
+   리스트 (감지 중인 사물, 매핑된 사운드)
+   ============================================================ */
 .list {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 160px;
+  max-height: 200px;
   overflow-y: auto;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
+}
+.list::-webkit-scrollbar {
+  width: 10px;
+}
+.list::-webkit-scrollbar-track {
+  background: var(--pink-pale);
+  border-radius: 10px;
+}
+.list::-webkit-scrollbar-thumb {
+  background: var(--pink);
+  border-radius: 10px;
+  border: 2px solid var(--paper);
 }
 .list li {
-  padding: 5px 0;
-  border-bottom: 1px solid #1f1f2a;
-  color: #aaa;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 12px 16px 10px 14px;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  border: 2px dashed var(--pink-soft);
   font-variant-numeric: tabular-nums;
 }
-.list li:last-child {
-  border-bottom: none;
-}
 .list li.has-sound {
-  color: #6acc6a;
+  color: var(--pink-hot);
+  background: var(--lemon);
+  border: 2px dashed var(--pink-hot);
 }
 
-/* 업로드 UI */
+/* ============================================================
+   업로드 UI
+   ============================================================ */
 .upload-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 .upload-row select {
   flex: 1;
-  background: #1a1a25;
-  color: #e8e8ea;
-  border: 1px solid #2a2a35;
-  border-radius: 4px;
-  padding: 6px 8px;
-  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 3px solid var(--pink);
+  border-radius: 14px 18px 12px 16px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.upload-row select:focus {
+  outline: none;
+  border-color: var(--pink-hot);
 }
 .file-btn {
-  background: #4a7eff;
-  color: white;
-  padding: 6px 10px;
-  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  background: var(--pink-hot);
+  color: var(--paper);
+  padding: 9px 14px;
+  border: 3px solid var(--ink);
+  border-radius: 14px 18px 12px 16px;
   cursor: pointer;
-  font-size: 0.8rem;
   white-space: nowrap;
+  text-shadow: 1px 1px 0 var(--ink-soft);
+  box-shadow: 2px 2px 0 var(--pink-pale);
+  transform: rotate(1deg);
 }
 .file-btn:hover {
-  background: #5a8eff;
+  background: var(--pink);
+  transform: rotate(-1deg) scale(1.05);
 }
 
-/* 매핑된 사운드 항목 */
+/* 매핑 사운드 항목 */
 .sound-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 0;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--paper-2);
+  border: 2px dashed var(--pink);
+  border-radius: 14px 18px 12px 16px;
+  margin-bottom: 6px;
+}
+.sound-item.expanded {
+  background: var(--lemon);
 }
 .sound-item-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .sound-item-row > span:first-child {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--pink-hot);
+  font-size: 1rem;
 }
 .sound-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 .sound-actions button {
-  background: #1a1a25;
-  color: #e8e8ea;
-  border: 1px solid #2a2a35;
-  border-radius: 3px;
-  width: 24px;
-  height: 24px;
+  font-family: inherit;
+  font-weight: 700;
+  background: var(--paper);
+  color: var(--pink-hot);
+  border: 2px solid var(--pink-hot);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  box-shadow: 1px 1px 0 var(--pink-soft);
 }
 .sound-actions button:hover {
-  background: #2a2a35;
-  border-color: #4a7eff;
+  background: var(--pink-pale);
+  transform: scale(1.15) rotate(8deg);
 }
 .sound-edit {
-  background: #0e0e16;
-  border: 1px solid #2a2a35;
-  border-radius: 4px;
-  padding: 8px;
-  font-size: 0.78rem;
+  background: var(--paper);
+  border: 2px dashed var(--pink);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 0.95rem;
   display: none;
 }
 .sound-item.expanded .sound-edit {
@@ -300,24 +561,28 @@ input[type='range'] {
 }
 .sound-edit label {
   display: block;
-  margin-bottom: 6px;
-  color: #aaa;
+  margin-bottom: 10px;
+  color: var(--ink);
 }
 .sound-edit label:last-child {
   margin-bottom: 0;
 }
 .sound-edit input[type='range'] {
   width: 100%;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 .sound-edit .val {
-  color: #4a7eff;
+  color: var(--pink-hot);
 }
 
+/* ============================================================
+   푸터
+   ============================================================ */
 footer {
+  position: relative;
+  z-index: 2;
   text-align: center;
-  padding: 16px;
-  color: #555;
-  font-size: 0.75rem;
-  border-top: 1px solid #2a2a35;
+  padding: 24px 20px 30px;
+  color: var(--ink-faded);
+  font-size: 1.1rem;
 }
