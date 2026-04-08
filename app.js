@@ -34,6 +34,10 @@ let stream = null;
 let running = false;
 let audioContext = null;
 const lastPlayed = {};
+// label -> 재생 종료 예정 시각(초). 아직 재생 중이면 재트리거 금지.
+const playingUntil = {};
+// 현재 재생 중인 BufferSource 들 (정지 시 clean stop 용)
+const activeSources = new Set();
 
 // 추론은 메인 스레드에서 무겁기 때문에 비디오 페인트와 분리해서 운영한다.
 // - latestPredictions: 마지막으로 받은 추론 결과 (rAF 가 매 프레임 그리기만 함)
@@ -437,9 +441,9 @@ function computeProximity(objBox, personBoxes, falloff) {
   return 1 / (1 + Math.pow(proximityUnits / 1.5, falloff));
 }
 
-// 한 번의 톤 재생 (오실레이터 + 짧은 envelope)
+// 한 번의 톤 재생 (오실레이터 + 짧은 envelope). 재생 지속 시간(초)을 반환.
 function playTone(label, multiplier = 1.0) {
-  if (!audioContext || !SOUND_MAP[label]) return;
+  if (!audioContext || !SOUND_MAP[label]) return 0;
   const { freq, type } = SOUND_MAP[label];
 
   const osc = audioContext.createOscillator();
@@ -456,33 +460,68 @@ function playTone(label, multiplier = 1.0) {
   osc.connect(gain).connect(audioContext.destination);
   osc.start(now);
   osc.stop(now + TONE_DURATION);
+  return TONE_DURATION;
 }
 
-// 업로드된 사운드 재생 (AudioBufferSourceNode — 동시 재생 가능)
-// 볼륨(GainNode)과 재생 속도(playbackRate)를 사용자 설정값으로 적용
-// multiplier: 거리 모드 등에서 추가로 곱하는 볼륨 계수 (0~1+)
+// 업로드된 사운드 재생 (AudioBufferSourceNode — 동시 재생 가능).
+// 재생 지속 시간(초)을 반환. playbackRate 가 반영된 실제 길이.
 function playCustom(label, multiplier = 1.0) {
-  if (!audioContext || !customSounds[label]) return;
+  if (!audioContext || !customSounds[label]) return 0;
   const { buffer, volume, rate } = customSounds[label];
+  const playbackRate = rate ?? 1.0;
 
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
-  source.playbackRate.value = rate ?? 1.0;
+  source.playbackRate.value = playbackRate;
 
   const gain = audioContext.createGain();
   gain.gain.value = (volume ?? 1.0) * multiplier;
 
   source.connect(gain).connect(audioContext.destination);
+
+  // 정지 버튼 눌렀을 때 깔끔하게 중단할 수 있도록 추적
+  activeSources.add(source);
+  source.onended = () => {
+    activeSources.delete(source);
+    // 혹시 타이밍 오차가 있어도 실제 종료 시점에 플래그 정리
+    if ((playingUntil[label] ?? 0) <= performance.now() / 1000 + 0.05) {
+      delete playingUntil[label];
+    }
+  };
+
   source.start();
+  return buffer.duration / playbackRate;
 }
 
-// 라벨 1개 재생: 커스텀이 있으면 커스텀, 없으면 기본 톤
+// 라벨 1개 재생 + playingUntil 갱신. 이미 재생 중이면 아무 것도 하지 않음.
 function playOne(label, multiplier = 1.0) {
+  const nowSec = performance.now() / 1000;
+  // 가드: 아직 재생 중이면 재트리거 금지 (긴 사운드 중복 재생 방지)
+  if (nowSec < (playingUntil[label] ?? 0)) return;
+
+  let duration = 0;
   if (customSounds[label]) {
-    playCustom(label, multiplier);
+    duration = playCustom(label, multiplier);
   } else if (SOUND_MAP[label]) {
-    playTone(label, multiplier);
+    duration = playTone(label, multiplier);
   }
+  if (duration > 0) {
+    playingUntil[label] = nowSec + duration;
+  }
+}
+
+// 모든 재생 중 사운드 즉시 중단 + 상태 리셋
+function stopAllSounds() {
+  for (const src of activeSources) {
+    try {
+      src.stop();
+    } catch (_) {
+      /* already stopped */
+    }
+  }
+  activeSources.clear();
+  for (const k of Object.keys(playingUntil)) delete playingUntil[k];
+  for (const k of Object.keys(lastPlayed)) delete lastPlayed[k];
 }
 
 // 감지된 prediction 들에 대해 모드/쿨다운/거리에 따라 사운드 재생
@@ -503,6 +542,9 @@ function playSounds(predictions) {
   const candidates = [];
   for (const [label, pred] of byClass) {
     if (!hasSound(label)) continue;
+    // 아직 이전 재생이 끝나지 않았으면 스킵 (긴 사운드 중복 방지)
+    if (now < (playingUntil[label] || 0)) continue;
+    // 쿨다운은 마지막 재생 시작 시점 기준 (짧은 톤용)
     if (now - (lastPlayed[label] || 0) < cd) continue;
     candidates.push({ label, multiplier: pred.proximityVolume ?? 1 });
   }
@@ -745,6 +787,7 @@ startBtn.addEventListener('click', async () => {
     overlayMessage.classList.remove('hidden');
     overlayMessage.textContent = '시작 버튼을 눌러 카메라를 켜세요';
     stopCamera();
+    stopAllSounds();
     return;
   }
 
