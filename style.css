@@ -605,6 +605,86 @@ input[type='range'] {
   border: 2px dashed var(--pink-soft) !important;
 }
 
+/* ============================================================
+   사물 직접 가르치기 (Teachable Machine)
+   ============================================================ */
+.teach-section {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--paper-2);
+  border: 3px dashed var(--pink-hot);
+  border-radius: 18px 14px 22px 16px;
+}
+.teach-section summary {
+  cursor: pointer;
+  color: var(--pink-hot);
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 4px 0;
+  list-style: none;
+}
+.teach-section summary::-webkit-details-marker {
+  display: none;
+}
+.teach-section summary::before {
+  content: '▶ ';
+  display: inline-block;
+  transition: transform 0.2s;
+}
+.teach-section[open] summary::before {
+  transform: rotate(90deg);
+}
+.teach-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.teach-form .hint strong {
+  color: var(--pink-hot);
+}
+.teach-status {
+  padding: 8px 12px;
+  background: var(--lemon);
+  border: 2px dashed var(--ink);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: var(--ink);
+  text-align: center;
+  min-height: 20px;
+}
+.teach-status.empty {
+  display: none;
+}
+.taught-list {
+  max-height: 180px;
+}
+.taught-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--lemon);
+  border: 2px solid var(--pink-hot);
+  color: var(--ink);
+}
+.taught-list li button {
+  background: var(--pink-hot);
+  color: var(--paper);
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* 커스텀 클래스 감지 배지 (영상 좌상단에 표시) */
+.custom-classes-hint {
+  color: var(--pink-hot);
+}
+
 /* 매핑 사운드 항목 */
 .sound-item {
   display: flex;

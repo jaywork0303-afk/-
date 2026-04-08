@@ -143,6 +143,28 @@
           </div>
         </div>
 
+        <details class="teach-section">
+          <summary>✨ 내 사물 직접 가르치기 (카메라로 학습)</summary>
+          <div class="teach-form">
+            <p class="hint">
+              COCO 에 없는 사물을 카메라로 보여주면 AI 가 학습해요.
+              카메라를 <strong>시작</strong>한 뒤, 학습시킬 사물을 화면 가운데
+              크게 비춰주세요 ♡
+            </p>
+            <input
+              type="text"
+              id="teachName"
+              class="text-input"
+              placeholder="사물 이름 (예: 바둑이, 내 인형)"
+            />
+            <button id="teachBtn" class="add-btn tone-btn" type="button">
+              📸 3초간 학습 시작
+            </button>
+            <div id="teachStatus" class="teach-status"></div>
+            <ul id="taughtList" class="list taught-list"></ul>
+          </div>
+        </details>
+
         <div class="mapping-divider">▼ 내가 만든 매핑 ▼</div>
 
         <ul id="soundList" class="list mapping-list">
@@ -160,6 +182,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

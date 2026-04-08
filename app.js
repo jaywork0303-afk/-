@@ -93,6 +93,11 @@ const classChips = document.getElementById('classChips');
 const addToneBtn = document.getElementById('addToneBtn');
 const addFileBtn = document.getElementById('addFileBtn');
 const mapFileInput = document.getElementById('mapFileInput');
+// 사물 직접 가르치기 (Teachable Machine) UI
+const teachName = document.getElementById('teachName');
+const teachBtn = document.getElementById('teachBtn');
+const teachStatus = document.getElementById('teachStatus');
+const taughtList = document.getElementById('taughtList');
 
 // 현재 카메라 방향 ('user' = 전면, 'environment' = 후면)
 let facingMode = 'user';
@@ -123,24 +128,21 @@ COCO_CLASSES.forEach((cls) => {
 });
 
 // 사용자가 만든 사운드 매핑
-// id -> entry. 각 entry 는 한 사운드를 1개 이상의 COCO 클래스에 매핑한다.
-//   {
-//     id, name (표시용), classes: ['car', 'truck', ...],
-//     kind: 'tone' | 'buffer' | 'element',
-//     // tone:
-//     tone: { freq, type },
-//     // buffer (Web Audio API):
-//     buffer: AudioBuffer,
-//     // element (HTMLMediaElement, 비디오/폴백 포맷):
-//     mediaElement: HTMLAudioElement, blobUrl: string, duration: number,
-//     // common:
-//     volume: number, rate: number,
-//     mimeType?, soundFileName?,
-//   }
+// id -> entry
 const customSounds = {};
 
 // 사물 추가 진행 중인 chip 상태 (사용자가 "추가" 누르기 전)
 const pendingChipClasses = new Set();
+
+// ---- Teachable Machine (사용자가 카메라로 직접 가르친 사물) ----
+// customClasses: { [name]: { name, exampleCount } }
+//   KNN 분류기에 학습된 사용자 정의 클래스들.
+//   chipPicker 드롭다운에 COCO 80 클래스와 함께 나타난다.
+const customClasses = {};
+let mobilenetModel = null;  // feature extractor (~4MB)
+let knnModel = null;        // KNN classifier
+let mobilenetLoading = null; // 중복 로드 방지용 Promise
+const CUSTOM_CONF_THRESHOLD = 0.8;
 
 // 슬라이더 값 표시
 confSlider.addEventListener('input', () => {
@@ -156,19 +158,81 @@ falloffSlider.addEventListener('input', () => {
   falloffValue.textContent = parseFloat(falloffSlider.value).toFixed(1);
 });
 
-// ---------- IndexedDB: 업로드 사운드 영구 저장 ----------
+// ---------- IndexedDB: 업로드 사운드 + KNN 학습 데이터 영구 저장 ----------
 const DB_NAME = 'object-sound-db';
 const STORE_NAME = 'sounds';
+const KNN_STORE = 'knn';
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE_NAME);
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = (e) => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(KNN_STORE)) {
+        db.createObjectStore(KNN_STORE);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// KNN 학습 데이터 저장/로드
+async function saveKnnDataset() {
+  if (!knnModel) return;
+  try {
+    const dataset = knnModel.getClassifierDataset();
+    const serialized = {};
+    for (const [label, tensor] of Object.entries(dataset)) {
+      const data = await tensor.data();
+      serialized[label] = {
+        data: Array.from(data),
+        shape: tensor.shape,
+      };
+    }
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(KNN_STORE, 'readwrite');
+      tx.objectStore(KNN_STORE).put(serialized, 'dataset');
+      tx.objectStore(KNN_STORE).put(customClasses, 'classes');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error('KNN 저장 실패', e);
+  }
+}
+
+async function loadKnnDataset() {
+  try {
+    const db = await openDB();
+    const raw = await new Promise((resolve, reject) => {
+      const tx = db.transaction(KNN_STORE, 'readonly');
+      const store = tx.objectStore(KNN_STORE);
+      const datasetReq = store.get('dataset');
+      const classesReq = store.get('classes');
+      tx.oncomplete = () => {
+        resolve({
+          dataset: datasetReq.result,
+          classes: classesReq.result,
+        });
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+    if (raw.classes) {
+      Object.assign(customClasses, raw.classes);
+    }
+    if (raw.dataset && Object.keys(raw.dataset).length > 0) {
+      // 텐서 복원은 KNN 초기화 후 수행
+      return raw.dataset;
+    }
+  } catch (e) {
+    console.error('KNN 로드 실패', e);
+  }
+  return null;
 }
 
 async function dbPut(label, value) {
@@ -673,6 +737,203 @@ mapFileInput.addEventListener('change', async (e) => {
 // 페이지 로드 시 저장된 사운드 불러오기
 loadSavedSoundsFromDB();
 
+// ---------- Teachable Machine: 사용자 사물 학습 ----------
+
+// 드롭다운을 COCO + customClasses 로 재구성
+function rebuildClassPicker() {
+  const current = classPicker.value;
+  classPicker.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '+ 사물 추가하기...';
+  classPicker.appendChild(placeholder);
+
+  // 커스텀 학습 사물 먼저
+  const customNames = Object.keys(customClasses);
+  if (customNames.length > 0) {
+    const group1 = document.createElement('optgroup');
+    group1.label = '✨ 내가 가르친 사물';
+    for (const name of customNames) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = `✨ ${name}`;
+      group1.appendChild(opt);
+    }
+    classPicker.appendChild(group1);
+  }
+
+  const group2 = document.createElement('optgroup');
+  group2.label = 'COCO 80 클래스';
+  for (const cls of COCO_CLASSES) {
+    const opt = document.createElement('option');
+    opt.value = cls;
+    opt.textContent = cls;
+    group2.appendChild(opt);
+  }
+  classPicker.appendChild(group2);
+
+  classPicker.value = current;
+}
+
+// MobileNet + KNN 로드 (lazy, 중복 로드 방지)
+async function ensureTeachModels() {
+  if (mobilenetModel && knnModel) return;
+  if (mobilenetLoading) return mobilenetLoading;
+
+  mobilenetLoading = (async () => {
+    if (typeof mobilenet === 'undefined' || typeof knnClassifier === 'undefined') {
+      throw new Error('학습 모듈을 불러오지 못했습니다. 네트워크를 확인해주세요.');
+    }
+    statusEl.textContent = 'MobileNet 로딩 중... (최초 1회)';
+    mobilenetModel = await mobilenet.load({ version: 2, alpha: 0.5 });
+    knnModel = knnClassifier.create();
+
+    // 저장된 학습 데이터 복원
+    const savedDataset = await loadKnnDataset();
+    if (savedDataset) {
+      const reconstructed = {};
+      for (const [label, { data, shape }] of Object.entries(savedDataset)) {
+        reconstructed[label] = tf.tensor(data, shape);
+      }
+      knnModel.setClassifierDataset(reconstructed);
+    }
+    statusEl.textContent = '학습 모듈 준비 완료';
+  })();
+
+  try {
+    await mobilenetLoading;
+  } finally {
+    mobilenetLoading = null;
+  }
+}
+
+// 학습 상태 UI
+function setTeachStatus(text) {
+  if (!text) {
+    teachStatus.classList.add('empty');
+    teachStatus.textContent = '';
+  } else {
+    teachStatus.classList.remove('empty');
+    teachStatus.textContent = text;
+  }
+}
+
+function renderTaughtList() {
+  taughtList.innerHTML = '';
+  const names = Object.keys(customClasses);
+  if (names.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty-hint';
+    li.textContent = '아직 가르친 사물이 없어요';
+    taughtList.appendChild(li);
+    return;
+  }
+  for (const name of names) {
+    const info = customClasses[name];
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.innerHTML = `✨ <strong>${escapeHtml(name)}</strong> <em class="filename">(${info.exampleCount}개 샘플)</em>`;
+    li.appendChild(span);
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.title = '삭제';
+    delBtn.onclick = async () => {
+      delete customClasses[name];
+      if (knnModel) {
+        try {
+          knnModel.clearClass(name);
+        } catch (_) {}
+      }
+      await saveKnnDataset();
+      renderTaughtList();
+      rebuildClassPicker();
+    };
+    li.appendChild(delBtn);
+    taughtList.appendChild(li);
+  }
+}
+
+// 학습 버튼: 3초간 카메라로 프레임을 캡처해 KNN 에 추가
+teachBtn.addEventListener('click', async () => {
+  const name = teachName.value.trim();
+  if (!name) {
+    alert('사물 이름을 입력해주세요.');
+    return;
+  }
+  if (!running) {
+    alert('먼저 카메라를 시작해주세요. (▶ 시작 버튼)');
+    return;
+  }
+
+  teachBtn.disabled = true;
+  setTeachStatus('학습 모듈 준비 중...');
+
+  try {
+    await ensureTeachModels();
+
+    const duration = 3000;
+    const frameCount = 30;
+    const interval = duration / frameCount;
+
+    setTeachStatus(`'${name}' 학습 중... 카메라에 사물을 크게 비춰주세요!`);
+
+    let added = 0;
+    for (let i = 0; i < frameCount; i++) {
+      if (video.readyState < 2) {
+        await new Promise((r) => setTimeout(r, interval));
+        continue;
+      }
+      const features = mobilenetModel.infer(video, true); // embedding
+      knnModel.addExample(features, name);
+      features.dispose();
+      added++;
+      setTeachStatus(`학습 중... ${i + 1}/${frameCount}`);
+      await new Promise((r) => setTimeout(r, interval));
+    }
+
+    // 누적 기록
+    const prevCount = customClasses[name]?.exampleCount || 0;
+    customClasses[name] = {
+      name,
+      exampleCount: prevCount + added,
+    };
+    await saveKnnDataset();
+
+    setTeachStatus(`✓ '${name}' 학습 완료! (총 ${customClasses[name].exampleCount}개 샘플)`);
+    teachName.value = '';
+    renderTaughtList();
+    rebuildClassPicker();
+  } catch (e) {
+    console.error(e);
+    setTeachStatus(`오류: ${e.message}`);
+  } finally {
+    teachBtn.disabled = false;
+  }
+});
+
+// 페이지 로드 시 저장된 커스텀 클래스 목록 복원 (텐서는 lazy)
+(async () => {
+  try {
+    const db = await openDB();
+    const raw = await new Promise((resolve, reject) => {
+      const tx = db.transaction(KNN_STORE, 'readonly');
+      const store = tx.objectStore(KNN_STORE);
+      const classesReq = store.get('classes');
+      tx.oncomplete = () => resolve(classesReq.result);
+      tx.onerror = () => reject(tx.error);
+    });
+    if (raw) {
+      Object.assign(customClasses, raw);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  rebuildClassPicker();
+  renderTaughtList();
+  setTeachStatus('');
+})();
+
 // 카메라 전환 버튼: facingMode 를 토글한 뒤 재시작
 camSwitchBtn.addEventListener('click', async () => {
   facingMode = facingMode === 'user' ? 'environment' : 'user';
@@ -1024,7 +1285,10 @@ function drawDetections(predictions) {
   predictions.forEach((p) => {
     const [x, y, w, h] = p.bbox;
     const isPerson = p.class === 'person';
-    const baseColor = hasSound(p.class) ? '#6acc6a' : '#ffcc4a';
+    const isCustom = !!p.isCustom;
+    const hasSnd = hasSound(p.class);
+    // 커스텀 클래스는 핑크 (서정월드 테마), COCO 매핑된 건 초록, 안 된 건 노랑
+    const baseColor = isCustom ? '#ff2e7e' : hasSnd ? '#6acc6a' : '#ffcc4a';
 
     // 거리 볼륨에 따라 박스 두께/투명도 변조
     const vol = p.proximityVolume ?? 1;
@@ -1032,8 +1296,12 @@ function drawDetections(predictions) {
 
     ctx.strokeStyle = baseColor;
     ctx.globalAlpha = distMode && !isPerson ? 0.3 + vol * 0.7 : 1;
-    ctx.lineWidth = lineWidth;
+    ctx.lineWidth = isCustom ? 4 : lineWidth;
+    if (isCustom) {
+      ctx.setLineDash([10, 6]);
+    }
     ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
 
     // 사람 - 사물 페어링 라인
     if (distMode && !isPerson && personCenters.length > 0) {
@@ -1063,8 +1331,8 @@ function drawDetections(predictions) {
     ctx.globalAlpha = 1;
 
     // 라벨 텍스트 (거리 모드면 vol% 도 표시)
-    let text = `${p.class} ${(p.score * 100).toFixed(0)}%`;
-    if (distMode && !isPerson) {
+    let text = `${isCustom ? '✨ ' : ''}${p.class} ${(p.score * 100).toFixed(0)}%`;
+    if (distMode && !isPerson && !isCustom) {
       text += ` · vol ${(vol * 100).toFixed(0)}%`;
     }
     ctx.font = '600 14px sans-serif';
@@ -1117,9 +1385,37 @@ function triggerInference() {
   // tf.tidy 는 detect 내부에서 처리됨. 결과 Promise 를 받아 저장만 한다.
   model
     .detect(video, 10)
-    .then((predictions) => {
+    .then(async (predictions) => {
       const conf = parseFloat(confSlider.value);
       const filtered = predictions.filter((p) => p.score >= conf);
+
+      // KNN 사용자 사물 추론 (MobileNet 로드되어 있고 학습 데이터가 있을 때만)
+      if (
+        mobilenetModel &&
+        knnModel &&
+        knnModel.getNumClasses &&
+        knnModel.getNumClasses() > 0
+      ) {
+        try {
+          const features = mobilenetModel.infer(video, true);
+          const result = await knnModel.predictClass(features);
+          features.dispose();
+          const topConf = result.confidences[result.label] || 0;
+          if (topConf >= CUSTOM_CONF_THRESHOLD) {
+            // 전체 프레임의 80% 를 덮는 가상 bbox (badge 용)
+            const w = video.videoWidth || canvas.width || 640;
+            const h = video.videoHeight || canvas.height || 480;
+            filtered.push({
+              class: result.label,
+              score: topConf,
+              bbox: [w * 0.1, h * 0.1, w * 0.8, h * 0.8],
+              isCustom: true,
+            });
+          }
+        } catch (e) {
+          console.error('KNN predict failed', e);
+        }
+      }
 
       // 거리 모드: 사람 bbox 들을 모아서 각 사물에 proximityVolume 부여
       if (distanceMode.checked) {
@@ -1129,7 +1425,7 @@ function triggerInference() {
         const falloff = parseFloat(falloffSlider.value);
         for (const p of filtered) {
           if (p.class === 'person') {
-            p.proximityVolume = 1.0; // 사람 자신은 항상 풀볼륨
+            p.proximityVolume = 1.0;
           } else {
             p.proximityVolume = computeProximity(p.bbox, personBoxes, falloff);
           }
