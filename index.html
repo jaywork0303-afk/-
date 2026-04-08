@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사물 인식 사운드 플레이어</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>사물 인식 사운드 플레이어</h1>
+    <p class="subtitle">
+      카메라로 사물을 인식하면 각 사물별 고유 사운드를 실시간으로 재생합니다
+    </p>
+  </header>
+
+  <main>
+    <section class="video-container">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div id="overlayMessage" class="overlay-message">
+        시작 버튼을 눌러 카메라를 켜세요
+      </div>
+    </section>
+
+    <aside class="controls">
+      <button id="startBtn" class="primary">▶ 시작</button>
+
+      <div id="status" class="status">대기 중</div>
+
+      <fieldset>
+        <legend>재생 모드</legend>
+        <label class="check">
+          <input type="checkbox" id="multiMode" checked />
+          <span>다중 사물 동시 재생</span>
+        </label>
+        <p class="hint">끄면 한 번에 한 사운드만 재생됩니다</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>설정</legend>
+        <label>
+          신뢰도 임계값 <span class="val" id="confValue">0.50</span>
+          <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5" />
+        </label>
+        <label>
+          쿨다운 (초) <span class="val" id="cdValue">1.5</span>
+          <input type="range" id="cdSlider" min="0" max="5" step="0.1" value="1.5" />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>감지 중인 사물</legend>
+        <ul id="detectionList" class="list"></ul>
+      </fieldset>
+
+      <fieldset>
+        <legend>매핑된 사운드</legend>
+        <ul id="soundList" class="list"></ul>
+      </fieldset>
+    </aside>
+  </main>
+
+  <footer>
+    TensorFlow.js · COCO-SSD · Web Audio API
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

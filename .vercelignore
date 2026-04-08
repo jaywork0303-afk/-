@@ -1,0 +1,10 @@
+main.py
+gui.py
+requirements.txt
+sound_map.json
+sounds/
+__pycache__/
+*.pyc
+*.pt
+.venv/
+venv/
