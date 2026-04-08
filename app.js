@@ -38,6 +38,8 @@ const lastPlayed = {};
 const playingUntil = {};
 // 현재 재생 중인 BufferSource 들 (정지 시 clean stop 용)
 const activeSources = new Set();
+// 현재 재생 중인 HTMLMediaElement 들 (비디오/폴백 경로용)
+const activeElements = new Set();
 
 // 추론은 메인 스레드에서 무겁기 때문에 비디오 페인트와 분리해서 운영한다.
 // - latestPredictions: 마지막으로 받은 추론 결과 (rAF 가 매 프레임 그리기만 함)
@@ -94,7 +96,13 @@ COCO_CLASSES.forEach((cls) => {
   classSelect.appendChild(opt);
 });
 
-// 사용자가 업로드한 사운드 (label -> { buffer: AudioBuffer, name: string })
+// 사용자가 업로드한 사운드
+// label -> {
+//   kind: 'buffer',  buffer: AudioBuffer,  name, volume, rate
+//   kind: 'element', blobUrl, duration, mimeType, name, volume, rate
+// }
+//   buffer: 순수 오디오 파일 (Web Audio API 경로, 동시 재생 최적)
+//   element: 비디오 파일 / decodeAudioData 실패한 케이스 (HTMLMediaElement 경로)
 const customSounds = {};
 
 // 슬라이더 값 표시
@@ -192,21 +200,18 @@ async function loadSavedSoundsFromDB() {
   }
 }
 
-// 보류 중인 ArrayBuffer 들을 audioContext 로 디코딩해서 customSounds 에 옮긴다
+// 보류 중인 ArrayBuffer 들을 audioContext 로 디코딩해서 customSounds 에 옮긴다.
+// decodeAudioData 실패 시 HTMLMediaElement 폴백 경로 시도.
 async function decodePendingSounds() {
   if (!audioContext) return;
   const labels = Object.keys(pendingSoundBuffers);
   for (const label of labels) {
-    const { arrayBuffer, name, volume, rate } = pendingSoundBuffers[label];
+    const { arrayBuffer, name, mimeType, volume, rate } = pendingSoundBuffers[label];
     try {
-      // decodeAudioData 는 ArrayBuffer 를 소비하므로 slice 로 복사본 사용
-      const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      customSounds[label] = {
-        buffer,
-        name,
-        volume: volume ?? 1.0,
-        rate: rate ?? 1.0,
-      };
+      const entry = await createCustomSoundEntry(arrayBuffer, mimeType, name);
+      entry.volume = volume ?? 1.0;
+      entry.rate = rate ?? 1.0;
+      customSounds[label] = entry;
       delete pendingSoundBuffers[label];
     } catch (e) {
       console.error(`'${label}' 디코딩 실패`, e);
@@ -282,6 +287,11 @@ function renderSoundList() {
       delBtn.title = '삭제';
       delBtn.onclick = async (e) => {
         e.stopPropagation();
+        // element 타입이면 blob URL 해제 (메모리 누수 방지)
+        const entry = customSounds[label];
+        if (entry && entry.kind === 'element' && entry.blobUrl) {
+          URL.revokeObjectURL(entry.blobUrl);
+        }
         delete customSounds[label];
         delete pendingSoundBuffers[label];
         await dbDelete(label);
@@ -361,6 +371,74 @@ async function persistSoundOptions(label) {
 }
 
 // 업로드 처리
+// ArrayBuffer 를 HTMLMediaElement (Audio) 로 재생 가능한지 검증하고
+// 재생용 blob URL + duration 을 반환. 실패하면 에러 throw.
+// 비디오 파일이나 Web Audio API 가 디코드 못 하는 포맷에 대한 폴백 경로.
+async function probeAsMediaElement(arrayBuffer, mimeType) {
+  const blob = new Blob([arrayBuffer], { type: mimeType || 'audio/mpeg' });
+  const url = URL.createObjectURL(blob);
+  const probe = document.createElement('audio');
+  probe.preload = 'metadata';
+  probe.src = url;
+
+  try {
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const ok = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const fail = (msg) => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(msg));
+      };
+      probe.onloadedmetadata = ok;
+      probe.oncanplay = ok;
+      probe.onerror = () => fail('이 파일은 브라우저가 재생할 수 없는 형식입니다');
+      setTimeout(() => fail('파일 로딩 시간 초과'), 5000);
+    });
+    const duration = Number.isFinite(probe.duration) && probe.duration > 0
+      ? probe.duration
+      : 1.0;
+    return { url, duration };
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    throw e;
+  }
+}
+
+// 파일 하나를 customSounds 엔트리 형태로 변환.
+// 1) 우선 Web Audio API 의 decodeAudioData 시도 (가장 빠르고 동시 재생 최적)
+// 2) 실패하면 HTMLMediaElement 폴백 (비디오 파일, 일부 컨테이너 포맷 등)
+// 3) 이미지 파일이면 명확한 에러
+async function createCustomSoundEntry(arrayBuffer, mimeType, name) {
+  if (mimeType && mimeType.startsWith('image/')) {
+    throw new Error('이미지 파일은 사운드로 사용할 수 없습니다. 오디오 또는 비디오 파일을 선택해주세요.');
+  }
+
+  // 1) Web Audio API 디코딩 시도
+  try {
+    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    return { kind: 'buffer', buffer, name, mimeType };
+  } catch (decodeErr) {
+    console.warn('decodeAudioData 실패, HTMLMediaElement 폴백 시도', decodeErr);
+  }
+
+  // 2) HTMLMediaElement 폴백 (비디오/컨테이너 포맷 등)
+  try {
+    const { url, duration } = await probeAsMediaElement(arrayBuffer, mimeType);
+    return { kind: 'element', blobUrl: url, duration, name, mimeType };
+  } catch (elemErr) {
+    throw new Error(
+      `디코딩 실패: ${elemErr.message}\n` +
+      `파일 형식: ${mimeType || '알 수 없음'}\n` +
+      `팁: mp3/wav/m4a/ogg 오디오 파일이나 mp4 비디오 파일을 사용해보세요.`
+    );
+  }
+}
+
 soundFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -371,31 +449,42 @@ soundFileInput.addEventListener('change', async (e) => {
     return;
   }
 
+  statusEl.textContent = `'${file.name}' 디코딩 중...`;
+
   try {
     ensureAudioContext();
     const arrayBuffer = await file.arrayBuffer();
-    // 디코딩은 슬라이스 사본으로 (원본은 IndexedDB 저장용)
-    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+
     // 같은 라벨에 이미 매핑이 있으면 볼륨/속도 유지, 없으면 기본값 1.0
     const prevVolume = customSounds[label]?.volume ?? 1.0;
     const prevRate = customSounds[label]?.rate ?? 1.0;
-    customSounds[label] = {
-      buffer,
-      name: file.name,
-      volume: prevVolume,
-      rate: prevRate,
-    };
+
+    // 이전 엔트리가 element 타입이면 blob URL 해제 (메모리 누수 방지)
+    const prev = customSounds[label];
+    if (prev && prev.kind === 'element' && prev.blobUrl) {
+      URL.revokeObjectURL(prev.blobUrl);
+    }
+
+    const entry = await createCustomSoundEntry(arrayBuffer, file.type, file.name);
+    entry.volume = prevVolume;
+    entry.rate = prevRate;
+    customSounds[label] = entry;
+
+    // IndexedDB 에는 원본 arrayBuffer + mimeType 저장
+    // (element 엔트리로 복원되었더라도 원본 파일을 그대로 저장해 다음 로드 시 재디코딩)
     await dbPut(label, {
       arrayBuffer,
+      mimeType: file.type,
       name: file.name,
       volume: prevVolume,
       rate: prevRate,
     });
-    statusEl.textContent = `'${label}' ← ${file.name} 매핑 완료`;
+    statusEl.textContent = `'${label}' ← ${file.name} 매핑 완료 (${entry.kind})`;
     renderSoundList();
   } catch (err) {
     console.error(err);
-    alert(`사운드 로드 실패: ${err.message}`);
+    statusEl.textContent = '사운드 로드 실패';
+    alert(err.message);
   } finally {
     soundFileInput.value = '';
   }
@@ -463,34 +552,65 @@ function playTone(label, multiplier = 1.0) {
   return TONE_DURATION;
 }
 
-// 업로드된 사운드 재생 (AudioBufferSourceNode — 동시 재생 가능).
+// 업로드된 사운드 재생. 엔트리 kind 에 따라 두 경로로 분기.
 // 재생 지속 시간(초)을 반환. playbackRate 가 반영된 실제 길이.
 function playCustom(label, multiplier = 1.0) {
   if (!audioContext || !customSounds[label]) return 0;
-  const { buffer, volume, rate } = customSounds[label];
-  const playbackRate = rate ?? 1.0;
+  const entry = customSounds[label];
+  const volume = entry.volume ?? 1.0;
+  const rate = entry.rate ?? 1.0;
 
-  const source = audioContext.createBufferSource();
-  source.buffer = buffer;
-  source.playbackRate.value = playbackRate;
+  // 1) Web Audio API 경로 (buffer) — 동시 재생 최적
+  if (entry.kind === 'buffer') {
+    const source = audioContext.createBufferSource();
+    source.buffer = entry.buffer;
+    source.playbackRate.value = rate;
 
-  const gain = audioContext.createGain();
-  gain.gain.value = (volume ?? 1.0) * multiplier;
+    const gain = audioContext.createGain();
+    gain.gain.value = volume * multiplier;
 
-  source.connect(gain).connect(audioContext.destination);
+    source.connect(gain).connect(audioContext.destination);
 
-  // 정지 버튼 눌렀을 때 깔끔하게 중단할 수 있도록 추적
-  activeSources.add(source);
-  source.onended = () => {
-    activeSources.delete(source);
-    // 혹시 타이밍 오차가 있어도 실제 종료 시점에 플래그 정리
-    if ((playingUntil[label] ?? 0) <= performance.now() / 1000 + 0.05) {
-      delete playingUntil[label];
-    }
-  };
+    activeSources.add(source);
+    source.onended = () => {
+      activeSources.delete(source);
+      if ((playingUntil[label] ?? 0) <= performance.now() / 1000 + 0.05) {
+        delete playingUntil[label];
+      }
+    };
 
-  source.start();
-  return buffer.duration / playbackRate;
+    source.start();
+    return entry.buffer.duration / rate;
+  }
+
+  // 2) HTMLMediaElement 경로 (element) — 비디오 파일 / 폴백 포맷
+  // 동시 재생을 위해 매번 새 Audio 요소를 blob URL 로부터 생성한다.
+  if (entry.kind === 'element') {
+    const el = document.createElement('audio');
+    el.src = entry.blobUrl;
+    el.preload = 'auto';
+    // HTMLMediaElement.volume 은 0~1 클램프 — multiplier 가 1 초과여도 1로 제한
+    el.volume = Math.max(0, Math.min(1, volume * multiplier));
+    el.playbackRate = rate;
+
+    activeElements.add(el);
+    const cleanup = () => {
+      activeElements.delete(el);
+      if ((playingUntil[label] ?? 0) <= performance.now() / 1000 + 0.05) {
+        delete playingUntil[label];
+      }
+    };
+    el.onended = cleanup;
+    el.onerror = cleanup;
+
+    el.play().catch((e) => {
+      console.error('element 재생 실패', e);
+      cleanup();
+    });
+    return (entry.duration || 1) / rate;
+  }
+
+  return 0;
 }
 
 // 라벨 1개 재생 + playingUntil 갱신. 이미 재생 중이면 아무 것도 하지 않음.
@@ -520,6 +640,17 @@ function stopAllSounds() {
     }
   }
   activeSources.clear();
+
+  for (const el of activeElements) {
+    try {
+      el.pause();
+      el.currentTime = 0;
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  activeElements.clear();
+
   for (const k of Object.keys(playingUntil)) delete playingUntil[k];
   for (const k of Object.keys(lastPlayed)) delete lastPlayed[k];
 }
