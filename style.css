@@ -3775,3 +3775,435 @@ body.pseudo-fullscreen .card-mode::after,
 body.pseudo-fullscreen .card-score::after {
   display: none !important;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   ░ VINTAGE PINK 50 / WARM GRAY 50 — 전체 색감 재구성
+   바랜 핑크와 따뜻한 그레이가 절반씩 균형을 이루는 톤.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* 빈티지 핑크 5톤 (어두움 → 밝음) */
+  --vp-1: #2a1418;   /* 가장 깊은 와인-블랙 */
+  --vp-2: #4d2530;   /* 어두운 더스티 로즈 */
+  --vp-3: #8b5566;   /* 미디엄 더스티 로즈 */
+  --vp-4: #d4889a;   /* 빈티지 핑크 본체 */
+  --vp-5: #f0c4cf;   /* 페일 핑크 하이라이트 */
+
+  /* 따뜻한 그레이 5톤 */
+  --vg-1: #1a1819;   /* 가장 깊은 그레이 */
+  --vg-2: #2d2a2c;   /* 다크 그레이 */
+  --vg-3: #6e676a;   /* 미디엄 그레이 */
+  --vg-4: #a89fa3;   /* 라이트 그레이 */
+  --vg-5: #e8e2e4;   /* 페일 그레이 (cream tint) */
+
+  /* 50/50 균형: 배경은 그레이, 악센트는 핑크, 텍스트는 둘 다 */
+  --paper-0: var(--vg-1);
+  --paper-1: var(--vg-2);
+  --paper-2: #38323a;
+  --paper-3: #423a44;
+  --ink-1:   var(--vg-5);
+  --ink-2:   var(--vg-4);
+  --ink-3:   var(--vg-3);
+  --ink-4:   #524a4d;
+
+  --pink-1:  var(--vp-4);
+  --pink-2:  var(--vp-3);
+  --pink-3:  var(--vp-2);
+  --pink-soft: var(--vp-5);
+}
+
+html, body {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(212, 136, 154, 0.08), transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(212, 136, 154, 0.06), transparent 55%),
+    var(--vg-2) !important;
+  color: var(--vg-5) !important;
+}
+
+/* 종이 그레인에 핑크 톤 살짝 */
+body::before,
+body::after {
+  background-blend-mode: normal;
+}
+
+/* ── 헤더 ── */
+.brand-mark {
+  filter:
+    invert(1) brightness(1.05) contrast(1.3)
+    drop-shadow(0 0 8px var(--vp-4))
+    drop-shadow(0 0 18px rgba(212, 136, 154, 0.7))
+    drop-shadow(2px 2px 0 var(--vg-3)) !important;
+}
+.brand-name {
+  color: var(--vg-5) !important;
+  -webkit-text-fill-color: var(--vg-5) !important;
+  text-shadow:
+    1px 1px 0 var(--vg-1),
+    2px 2px 0 var(--vp-3),
+    0 0 12px rgba(212, 136, 154, 0.25) !important;
+}
+.brand-name em {
+  color: var(--vp-4) !important;
+  -webkit-text-fill-color: var(--vp-4) !important;
+  text-shadow: 0 0 8px rgba(212, 136, 154, 0.5) !important;
+}
+.brand::after {
+  color: var(--vp-4) !important;
+  -webkit-text-fill-color: var(--vp-4) !important;
+  text-shadow: 0 0 8px rgba(212, 136, 154, 0.7) !important;
+}
+.header-meta { color: var(--vg-3) !important; }
+.header-meta .sep { color: var(--vp-3) !important; }
+#timeNow {
+  color: var(--vp-5) !important;
+  -webkit-text-fill-color: var(--vp-5) !important;
+  text-shadow: 0 0 8px rgba(240, 196, 207, 0.5) !important;
+}
+.header-meta span:nth-child(2),
+.header-meta span:nth-child(4) {
+  color: var(--vp-4) !important;
+  -webkit-text-fill-color: var(--vp-4) !important;
+}
+.header-line {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 6' preserveAspectRatio='none'><path d='M2,3 C150,1 300,5 450,2 C520,1 580,4 598,3' stroke='%23d4889a' stroke-width='2' stroke-linecap='round' fill='none' opacity='0.85'/><path d='M2,5 C100,3 250,6 400,4 C500,3 580,5 598,4' stroke='%23a89fa3' stroke-width='1.4' fill='none' opacity='0.65'/></svg>") !important;
+  height: 5px !important;
+}
+
+/* ── 패널/카드: 그레이 본체 + 핑크 보더 ── */
+.float-panel,
+.card,
+.panel-observation,
+.panel-parameters,
+.card-mode,
+.card-score {
+  background:
+    linear-gradient(135deg,
+      rgba(45, 42, 44, 0.88) 0%,
+      rgba(77, 37, 48, 0.32) 100%) !important;
+  border: 1.5px solid var(--vp-3) !important;
+  box-shadow:
+    2px 3px 0 var(--vg-1),
+    inset 0 0 30px rgba(212, 136, 154, 0.06),
+    0 0 20px rgba(212, 136, 154, 0.1) !important;
+  backdrop-filter: blur(2px);
+}
+/* 카드 4개 중 2개는 핑크 컬러 우세, 2개는 그레이 우세 */
+.panel-observation,
+.card-mode {
+  background:
+    linear-gradient(135deg,
+      rgba(77, 37, 48, 0.55) 0%,
+      rgba(45, 42, 44, 0.78) 100%) !important;
+  border-color: var(--vp-4) !important;
+}
+.panel-parameters,
+.card-score {
+  background:
+    linear-gradient(135deg,
+      rgba(45, 42, 44, 0.88) 0%,
+      rgba(77, 37, 48, 0.28) 100%) !important;
+  border-color: var(--vg-4) !important;
+}
+
+/* panel-num 배지 — 핑크/그레이 교차 */
+.panel-num {
+  background: var(--vp-4) !important;
+  color: var(--vg-1) !important;
+  -webkit-text-fill-color: var(--vg-1) !important;
+  border-color: var(--vp-2) !important;
+  box-shadow: 1px 1px 0 var(--vp-2), 0 0 8px rgba(212, 136, 154, 0.4) !important;
+}
+.panel-parameters .panel-num,
+.card-score .panel-num {
+  background: var(--vg-5) !important;
+  color: var(--vp-3) !important;
+  -webkit-text-fill-color: var(--vp-3) !important;
+  border-color: var(--vg-3) !important;
+  box-shadow: 1px 1px 0 var(--vg-3), 0 0 8px rgba(168, 159, 163, 0.35) !important;
+}
+
+/* 패널 텍스트도 50/50 */
+.panel-observation .panel-title,
+.card-mode .panel-title {
+  color: var(--vp-5) !important;
+  -webkit-text-fill-color: var(--vp-5) !important;
+  text-shadow: 1px 1px 0 var(--vg-1), 0 0 8px rgba(240, 196, 207, 0.4) !important;
+}
+.panel-parameters .panel-title,
+.card-score .panel-title {
+  color: var(--vg-5) !important;
+  -webkit-text-fill-color: var(--vg-5) !important;
+  text-shadow: 1px 1px 0 var(--vg-1), 0 0 8px rgba(168, 159, 163, 0.3) !important;
+}
+.panel-sub {
+  color: var(--vp-3) !important;
+  -webkit-text-fill-color: var(--vp-3) !important;
+}
+
+/* 마스코트 워터마크도 핑크 */
+.panel-observation::after,
+.panel-parameters::after,
+.card-mode::after,
+.card-score::after {
+  filter:
+    invert(0.3) sepia(1) saturate(5) hue-rotate(295deg) brightness(1.1)
+    drop-shadow(0 0 6px rgba(212, 136, 154, 0.6)) !important;
+  opacity: 0.22 !important;
+}
+.panel-parameters::after,
+.card-score::after {
+  filter:
+    invert(0.7) sepia(0.2) saturate(0.5) brightness(1.1)
+    drop-shadow(0 0 6px rgba(168, 159, 163, 0.5)) !important;
+  opacity: 0.18 !important;
+}
+
+/* ── 슬라이더: 핑크 thumb + 그레이 트랙 ── */
+input[type="range"] {
+  accent-color: var(--vp-4);
+  filter: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  background: var(--vp-4) !important;
+  border: 2px solid var(--vg-1) !important;
+  box-shadow:
+    1px 1px 0 var(--vg-1),
+    0 0 10px rgba(212, 136, 154, 0.5) !important;
+}
+input[type="range"]::-moz-range-thumb {
+  background: var(--vp-4) !important;
+  border: 2px solid var(--vg-1) !important;
+}
+
+/* val 라벨 */
+.val {
+  color: var(--vp-5) !important;
+  -webkit-text-fill-color: var(--vp-5) !important;
+  border-bottom-color: var(--vp-4) !important;
+  text-shadow: 0 0 6px rgba(240, 196, 207, 0.4), 1px 1px 0 var(--vg-1) !important;
+}
+
+/* 라벨 텍스트 */
+label {
+  color: var(--vg-4) !important;
+}
+
+/* ── 버튼 ── */
+.btn-primary {
+  background: var(--vg-1) !important;
+  background-image: none !important;
+  color: var(--vp-5) !important;
+  border: 2px solid var(--vp-4) !important;
+  box-shadow: 2px 2px 0 var(--vp-3), 0 0 12px rgba(212, 136, 154, 0.3) !important;
+  text-shadow: 1px 1px 0 var(--vg-1), 0 0 8px rgba(240, 196, 207, 0.5) !important;
+}
+.btn-primary:hover {
+  background: var(--vp-4) !important;
+  color: var(--vg-1) !important;
+  border-color: var(--vp-5) !important;
+}
+.btn-primary .btn-sub { color: var(--vp-3) !important; }
+
+.icon-btn {
+  background: rgba(26, 24, 25, 0.7) !important;
+  color: var(--vp-4) !important;
+  border: 2px solid var(--vp-4) !important;
+  box-shadow: 1px 1px 0 var(--vg-1) !important;
+}
+.icon-btn:hover {
+  background: var(--vp-4) !important;
+  color: var(--vg-1) !important;
+}
+
+.add-btn {
+  background: transparent !important;
+  color: var(--vp-5) !important;
+  border: 1.5px dashed var(--vp-4) !important;
+}
+.add-btn:hover {
+  background: var(--vp-4) !important;
+  color: var(--vg-1) !important;
+}
+
+/* 한 카드는 그레이 버튼 — SCORE 카드 안의 add-btn */
+.card-score .add-btn {
+  border-color: var(--vg-4) !important;
+  color: var(--vg-5) !important;
+}
+.card-score .add-btn:hover {
+  background: var(--vg-5) !important;
+  color: var(--vp-3) !important;
+}
+
+/* ── 인풋/셀렉트 ── */
+.text-input,
+select {
+  background: rgba(26, 24, 25, 0.7) !important;
+  color: var(--vp-5) !important;
+  border-color: var(--vp-3) !important;
+}
+.text-input::placeholder {
+  color: var(--vg-3) !important;
+}
+.text-input:focus,
+select:focus {
+  border-color: var(--vp-4) !important;
+  box-shadow: 0 2px 0 var(--vp-4), 0 0 12px rgba(212, 136, 154, 0.3) !important;
+}
+
+/* ── 체크박스 ── */
+.check input[type="checkbox"] {
+  accent-color: var(--vp-4);
+  filter: none;
+  border-color: var(--vp-4) !important;
+}
+.check input[type="checkbox"]:checked::after {
+  color: var(--vp-4) !important;
+}
+.check span {
+  color: var(--vp-5) !important;
+  -webkit-text-fill-color: var(--vp-5) !important;
+}
+/* 두번째 체크박스는 그레이 톤 */
+.card-mode label.check:nth-of-type(2) span {
+  color: var(--vg-4) !important;
+  -webkit-text-fill-color: var(--vg-4) !important;
+}
+
+/* ── 감지 리스트: 항목별 핑크/그레이 교차 ── */
+#detectionList li,
+#soundList li {
+  background: rgba(45, 42, 44, 0.5) !important;
+  border-color: var(--vg-3) !important;
+  border-left: 3px solid var(--vp-4) !important;
+  color: var(--vg-5) !important;
+}
+#detectionList li:nth-child(2n),
+#soundList li:nth-child(2n) {
+  background: rgba(77, 37, 48, 0.3) !important;
+  border-left-color: var(--vg-4) !important;
+}
+#detectionList li::before { color: var(--vp-4) !important; -webkit-text-fill-color: var(--vp-4) !important; }
+#detectionList li:nth-child(2n)::before { color: var(--vg-4) !important; -webkit-text-fill-color: var(--vg-4) !important; }
+
+/* ── 칩 ── */
+.chip,
+.chips .chip {
+  background: rgba(212, 136, 154, 0.15) !important;
+  color: var(--vp-5) !important;
+  border-color: var(--vp-4) !important;
+  box-shadow: 1px 1px 0 var(--vg-1) !important;
+}
+
+/* ── mapping divider ── */
+.mapping-divider {
+  color: var(--vp-3) !important;
+  -webkit-text-fill-color: var(--vp-3) !important;
+}
+
+/* ── hint / empty-hint ── */
+.hint {
+  color: var(--vg-3) !important;
+}
+.empty-hint {
+  color: var(--vp-3) !important;
+}
+
+/* ── ASCII 데코 ── */
+.mobile-ascii,
+.mobile-ascii.hero,
+.mobile-ascii.ribbon,
+.mobile-ascii.sigil {
+  color: var(--vp-3) !important;
+  -webkit-text-fill-color: var(--vp-3) !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  opacity: 0.55;
+  text-shadow: 1px 1px 0 var(--vg-1), 0 0 6px rgba(212, 136, 154, 0.3);
+}
+
+/* ── footer ── */
+.footer-content { color: var(--vg-4) !important; }
+.footer-left .sep { color: var(--vp-3) !important; }
+.footer-sub {
+  color: var(--vp-3) !important;
+  -webkit-text-fill-color: var(--vp-3) !important;
+}
+.footer-top-line {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 4' preserveAspectRatio='none'><path d='M2,2 C150,0 300,3 450,1 C520,0 580,3 598,2' stroke='%23d4889a' stroke-width='1.4' fill='none' opacity='0.7'/></svg>") !important;
+}
+
+/* ── HUD 색감도 핑크/그레이 ── */
+.hud-corner { border-color: var(--vp-4) !important; }
+.cross-h, .cross-v { background: var(--vp-4) !important; opacity: 0.5 !important; }
+.cross-dot { background: var(--vp-5) !important; opacity: 0.65 !important; }
+.hud-top { color: var(--vg-4) !important; }
+.hud-top .rec-dot { background: var(--vp-4) !important; box-shadow: 0 0 8px var(--vp-4) !important; }
+.hud-scale-left span { background: var(--vp-4) !important; }
+.hud-scale-bottom span { background: var(--vg-4) !important; }
+
+/* ── 카메라 CRT — 빈티지 핑크 톤 ── */
+#video, #overlay {
+  filter:
+    contrast(1.15) saturate(0.7) brightness(0.92)
+    sepia(0.3) hue-rotate(-15deg) blur(0.3px) !important;
+}
+
+/* CRT 오버레이의 롤링 밴드를 핑크로 */
+#videoContainer::after,
+.video-container::after {
+  background:
+    radial-gradient(ellipse at center,
+      transparent 32%,
+      rgba(45, 42, 44, 0.5) 78%,
+      rgba(26, 24, 25, 0.92) 100%),
+    repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.38) 0 1px,
+      transparent 1px 3px),
+    linear-gradient(180deg,
+      transparent 0%,
+      rgba(212, 136, 154, 0.06) 49%,
+      rgba(240, 196, 207, 0.1) 50%,
+      rgba(212, 136, 154, 0.06) 51%,
+      transparent 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='2.4' numOctaves='3' seed='19' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.78  0 0 0 0 0.81  0 0 0 0.28 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>") !important;
+}
+
+/* STANDBY / overlay */
+#status,
+.stage-status {
+  background: var(--vg-1) !important;
+  color: var(--vp-5) !important;
+  border-color: var(--vp-4) !important;
+  box-shadow: 2px 2px 0 var(--vp-3) !important;
+}
+#status::before,
+.stage-status::before {
+  color: var(--vp-4) !important;
+  text-shadow: 1px 1px 0 var(--vg-1), 0 0 6px rgba(212, 136, 154, 0.5) !important;
+}
+.overlay-message {
+  color: var(--vp-5) !important;
+  -webkit-text-fill-color: var(--vp-5) !important;
+  text-shadow:
+    2px 2px 0 var(--vg-1),
+    -1px -1px 0 var(--vg-1),
+    0 0 24px rgba(212, 136, 154, 0.45) !important;
+}
+
+/* 선택/스크롤바 */
+::selection { background: var(--vp-4); color: var(--vg-1); }
+::-webkit-scrollbar-thumb { background: var(--vp-3); border: 2px solid var(--vg-1); }
+::-webkit-scrollbar-thumb:hover { background: var(--vp-4); }
+
+/* 풀스크린 동안엔 핑크 워터마크 안 보이게 */
+body.pseudo-fullscreen .panel-observation::after,
+body.pseudo-fullscreen .panel-parameters::after,
+body.pseudo-fullscreen .card-mode::after,
+body.pseudo-fullscreen .card-score::after {
+  display: none !important;
+}
