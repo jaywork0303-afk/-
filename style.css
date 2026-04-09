@@ -1196,3 +1196,73 @@ body.pseudo-fullscreen .cam-switch-btn:not(.fullscreen-btn) {
   top: max(20px, env(safe-area-inset-top)) !important;
   right: max(20px, env(safe-area-inset-right)) !important;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   ░ MASCOT FLOATY — 배경에 떠다니는 마스코트 5마리
+   ═══════════════════════════════════════════════════════════════ */
+.mascot-floaty {
+  position: absolute;
+  pointer-events: none;
+  /* 검은 라인을 핑크로 tint */
+  filter:
+    invert(1) sepia(1) saturate(7) hue-rotate(295deg) brightness(0.95)
+    drop-shadow(2px 2px 0 var(--pink-soft, #f9c5d1))
+    drop-shadow(0 0 6px rgba(255, 105, 145, 0.4));
+  opacity: 0.55;
+  user-select: none;
+}
+
+/* 5마리 — 위치/크기/회전/지연 다 다르게 */
+.mascot-1 {
+  top: 18%; left: 8%;
+  width: 64px; height: 64px;
+  transform: rotate(-12deg);
+  animation: mascot-drift 12s ease-in-out infinite;
+  animation-delay: 0s;
+}
+.mascot-2 {
+  top: 30%; right: 6%;
+  width: 52px; height: 52px;
+  transform: rotate(18deg);
+  animation: mascot-drift 14s ease-in-out infinite;
+  animation-delay: 2.4s;
+  opacity: 0.45;
+}
+.mascot-3 {
+  top: 56%; left: 4%;
+  width: 72px; height: 72px;
+  transform: rotate(8deg) scaleX(-1);
+  animation: mascot-drift 16s ease-in-out infinite;
+  animation-delay: 5s;
+}
+.mascot-4 {
+  top: 72%; right: 10%;
+  width: 58px; height: 58px;
+  transform: rotate(-22deg);
+  animation: mascot-drift 13s ease-in-out infinite;
+  animation-delay: 7.2s;
+  opacity: 0.5;
+}
+.mascot-5 {
+  bottom: 6%; left: 38%;
+  width: 46px; height: 46px;
+  transform: rotate(14deg) scaleX(-1);
+  animation: mascot-drift 11s ease-in-out infinite;
+  animation-delay: 3.6s;
+  opacity: 0.4;
+}
+
+/* 떠다니는 모션 — doodle 보다 살짝 더 출렁 */
+@keyframes mascot-drift {
+  0%, 100% { translate: 0 0;        rotate: var(--r, 0deg); }
+  20%      { translate: 6px -14px;  rotate: calc(var(--r, 0deg) + 5deg); }
+  40%      { translate: -8px -22px; rotate: calc(var(--r, 0deg) - 4deg); }
+  60%      { translate: 5px -16px;  rotate: calc(var(--r, 0deg) + 3deg); }
+  80%      { translate: -4px -8px;  rotate: calc(var(--r, 0deg) - 2deg); }
+}
+
+/* 풀스크린 동안엔 숨김 */
+body.pseudo-fullscreen .mascot-floaty {
+  display: none !important;
+}
