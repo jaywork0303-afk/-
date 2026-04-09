@@ -3396,18 +3396,17 @@ footer {
     background: none !important;
   }
 
-  /* ── classPicker + STUDY 버튼 같은 가로선 ── */
+  /* ── classPicker + STUDY 버튼 같은 가로선 (좁은 화면에도 유지) ── */
   .picker-row {
-    display: flex !important;
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
     gap: 8px !important;
-    align-items: stretch !important;
+    align-items: center !important;
     padding: 0 14px !important;
     margin-bottom: 8px;
   }
   .picker-row .class-picker {
-    flex: 1 1 180px !important;
-    min-width: 140px !important;
+    min-width: 0 !important;
     padding: 0 !important;
   }
   .picker-row .class-picker select {
