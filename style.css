@@ -3236,7 +3236,7 @@ footer {
     filter: drop-shadow(2px 3px 0 rgba(10, 9, 11, 0.85)) !important;
   }
 
-  /* 비디오 자체 = 브라운관 화면 (곡률 + 필터) */
+  /* 비디오 자체 = 브라운관 화면 (곡률 + 필터 + 울렁거림 + 지지직) */
   #video,
   #overlay {
     border-radius: 50% / 16% !important;
@@ -3244,6 +3244,46 @@ footer {
       contrast(1.18) saturate(0.45) brightness(0.88)
       sepia(0.2) hue-rotate(-8deg) blur(0.3px) !important;
     clip-path: inset(0 round 50% / 16%) !important;
+    animation: crt-wobble 3.6s ease-in-out infinite !important;
+    transform-origin: center;
+    will-change: transform, filter;
+  }
+  /* 브라운관 울렁+지지직 통합 keyframe (transform 은 하나만 설정해야 덮어쓰지 않음) */
+  @keyframes crt-wobble {
+    0%    { transform: scale(1.002, 1)      translate(0, 0)         skewX(0deg); }
+    4%    { transform: scale(1.006, 0.996)  translate(0.4px, -0.3px) skewX(0.15deg); }
+    12%   { transform: scale(0.998, 1.004)  translate(-0.3px, 0.2px) skewX(-0.2deg); }
+    20%   { transform: scale(1.005, 0.998)  translate(0.2px, 0.4px)  skewX(0.1deg); }
+    28%   { transform: scale(0.996, 1.006)  translate(-0.5px, -0.2px) skewX(-0.15deg); }
+    36%   { transform: scale(1.003, 1)      translate(0.3px, 0.3px)  skewX(0.08deg); }
+    44%   { transform: scale(1)             translate(-0.2px, -0.4px) skewX(-0.12deg); }
+    52%   { transform: scale(1.004, 0.997)  translate(0.4px, 0.1px)  skewX(0.18deg); }
+    60%   { transform: scale(0.997, 1.003)  translate(-0.3px, 0.3px) skewX(-0.1deg); }
+    68%   { transform: scale(1.002, 0.999)  translate(0.2px, -0.2px) skewX(0.14deg); }
+    76%   { transform: scale(0.999, 1.002)  translate(-0.4px, 0.4px) skewX(-0.18deg); }
+    84%   { transform: scale(1.005, 0.996)  translate(0.3px, -0.3px) skewX(0.1deg); }
+    92%   { transform: scale(1.001, 1.001)  translate(-0.2px, 0.2px) skewX(-0.06deg); }
+    100%  { transform: scale(1.002, 1)      translate(0, 0)         skewX(0deg); }
+  }
+
+  /* 가끔씩 화면 가로지르는 글리치 테어 바 */
+  .stage .video-container,
+  #videoContainer {
+    position: relative;
+  }
+  .stage > .video-container::after {
+    /* 이미 CRT ::after 가 있으니 글리치 바는 별도 span 대신 재사용 안하고, 새 규칙 대신 기존 배경 animation 만 강화 */
+  }
+
+  /* 화면 전체 색감 살짝 흔들리는 hue-rotate 브리딩 */
+  #videoContainer {
+    animation: crt-breathe 6.2s ease-in-out infinite !important;
+  }
+  @keyframes crt-breathe {
+    0%, 100% { filter: none; }
+    30%      { filter: brightness(1.03) contrast(1.02); }
+    55%      { filter: brightness(0.97) contrast(1.05); }
+    80%      { filter: brightness(1.01) contrast(0.99); }
   }
 
   /* video-container::after = CRT 스캔라인 + 정적 노이즈 (더 지지직) */
