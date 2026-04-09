@@ -3,183 +3,267 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SEOJEONG · 서정월드</title>
+  <title>서정월드 ♥ 사물 인식 사운드</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Gaegu:wght@400;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Single+Day&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=20260409-flat" />
+  <link rel="stylesheet" href="style.css?v=20260409-art" />
 </head>
 <body>
-  <div class="ambient-grid" aria-hidden="true"></div>
-  <div class="ambient-glow" aria-hidden="true"></div>
-  <div class="grain" aria-hidden="true"></div>
-  <div class="static-flash" aria-hidden="true"></div>
+  <!-- SVG 필터 + 재사용 doodle symbol 들 -->
+  <svg class="svg-defs" aria-hidden="true">
+    <defs>
+      <!-- 약한 크레파스 러프 -->
+      <filter id="crayon-rough" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="7" />
+        <feDisplacementMap in="SourceGraphic" scale="2.5" />
+      </filter>
+      <!-- 강한 러프 (제목 등) -->
+      <filter id="crayon-rough-strong" x="-8%" y="-8%" width="116%" height="116%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="3" seed="3" />
+        <feDisplacementMap in="SourceGraphic" scale="5" />
+      </filter>
+      <!-- 찢어진 종이 효과 (매우 약한 displacement) -->
+      <filter id="paper-torn" x="-3%" y="-3%" width="106%" height="106%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="2" seed="11" />
+        <feDisplacementMap in="SourceGraphic" scale="3.5" />
+      </filter>
+      <!-- 마커 번짐 (glow) -->
+      <filter id="marker-bleed" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="0.8" />
+      </filter>
+
+      <!-- 재사용 doodle symbols -->
+      <symbol id="doodle-scribble" viewBox="0 0 120 12">
+        <path
+          d="M2,8 Q15,2 28,7 T52,6 T78,8 T108,5 L118,6"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          fill="none"
+        />
+      </symbol>
+      <symbol id="doodle-arrow" viewBox="0 0 80 40">
+        <path
+          d="M5,30 Q20,5 40,20 T75,15"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          fill="none"
+        />
+        <path
+          d="M60,8 L75,15 L65,25"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none"
+        />
+      </symbol>
+      <symbol id="doodle-spiral" viewBox="0 0 60 60">
+        <path
+          d="M30,30 m-2,0 a2,2 0 1,1 4,0 a5,5 0 1,1 -10,0 a9,9 0 1,1 18,0 a13,13 0 1,1 -26,0 a17,17 0 1,1 34,0"
+          stroke="currentColor"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linecap="round"
+        />
+      </symbol>
+      <symbol id="doodle-star" viewBox="0 0 50 50">
+        <path
+          d="M25,5 L30,20 L45,22 L33,33 L37,48 L25,39 L13,48 L17,33 L5,22 L20,20 Z"
+          stroke="currentColor"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-heart-wonky" viewBox="0 0 60 56">
+        <path
+          d="M30,50 C5,30 5,10 20,8 C27,7 30,15 30,15 C30,15 33,6 41,8 C56,10 55,31 30,50 Z"
+          stroke="currentColor"
+          stroke-width="3"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-sun" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="14" stroke="currentColor" stroke-width="3" fill="none" />
+        <g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none">
+          <line x1="40" y1="8"  x2="40" y2="18" />
+          <line x1="40" y1="62" x2="40" y2="72" />
+          <line x1="8"  y1="40" x2="18" y2="40" />
+          <line x1="62" y1="40" x2="72" y2="40" />
+          <line x1="18" y1="18" x2="25" y2="25" />
+          <line x1="55" y1="55" x2="62" y2="62" />
+          <line x1="62" y1="18" x2="55" y2="25" />
+          <line x1="25" y1="55" x2="18" y2="62" />
+        </g>
+      </symbol>
+      <symbol id="doodle-cloud" viewBox="0 0 100 50">
+        <path
+          d="M18,42 Q5,40 8,28 Q10,15 25,18 Q28,5 45,10 Q55,3 65,12 Q80,8 85,22 Q98,24 92,38 Q90,45 78,42 L18,42 Z"
+          stroke="currentColor"
+          stroke-width="3"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-sparkle" viewBox="0 0 40 40">
+        <path
+          d="M20,2 L23,17 L38,20 L23,23 L20,38 L17,23 L2,20 L17,17 Z"
+          stroke="currentColor"
+          stroke-width="2"
+          fill="none"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="doodle-flower" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="7" stroke="currentColor" stroke-width="2.5" fill="none" />
+        <g stroke="currentColor" stroke-width="2.5" fill="none">
+          <ellipse cx="30" cy="12" rx="6" ry="9" />
+          <ellipse cx="30" cy="48" rx="6" ry="9" />
+          <ellipse cx="12" cy="30" rx="9" ry="6" />
+          <ellipse cx="48" cy="30" rx="9" ry="6" />
+        </g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- 배경 장식: 손그림 doodle 들을 페이지 전체에 흩뿌린다 -->
+  <div class="bg-decor" aria-hidden="true">
+    <svg class="doodle doodle-1" style="color: var(--pink-hot)"><use href="#doodle-spiral" /></svg>
+    <svg class="doodle doodle-2" style="color: var(--lemon-ink)"><use href="#doodle-star" /></svg>
+    <svg class="doodle doodle-3" style="color: var(--mint-ink)"><use href="#doodle-heart-wonky" /></svg>
+    <svg class="doodle doodle-4" style="color: var(--peach-ink)"><use href="#doodle-sparkle" /></svg>
+    <svg class="doodle doodle-5" style="color: var(--pink)"><use href="#doodle-flower" /></svg>
+    <svg class="doodle doodle-6" style="color: var(--lavender-ink)"><use href="#doodle-sun" /></svg>
+    <svg class="doodle doodle-7" style="color: var(--pink-hot)"><use href="#doodle-cloud" /></svg>
+    <svg class="doodle doodle-8" style="color: var(--mint-ink)"><use href="#doodle-spiral" /></svg>
+    <svg class="doodle doodle-9" style="color: var(--peach-ink)"><use href="#doodle-star" /></svg>
+    <svg class="doodle doodle-10" style="color: var(--lavender-ink)"><use href="#doodle-heart-wonky" /></svg>
+    <svg class="doodle doodle-11" style="color: var(--pink-hot)"><use href="#doodle-sparkle" /></svg>
+    <svg class="doodle doodle-12" style="color: var(--lemon-ink)"><use href="#doodle-flower" /></svg>
+    <span class="scribble-text scribble-text-1">몽글몽글 ~</span>
+    <span class="scribble-text scribble-text-2">♡ 서정 ♡</span>
+    <span class="scribble-text scribble-text-3">들어봐 !</span>
+  </div>
 
   <header class="site-header">
-    <div class="header-row">
-      <div class="brand">
-        <span class="brand-mark">◉</span>
-        <span class="brand-name">SEOJEONG <em>서정월드</em></span>
-      </div>
-      <nav class="header-meta">
-        <span>INDEX / 001</span>
-        <span class="sep">·</span>
-        <span>PERCEPTUAL SCORE</span>
-        <span class="sep">·</span>
-        <span id="timeNow">00:00:00</span>
-      </nav>
-    </div>
-    <div class="header-line"></div>
+    <svg class="header-doodle header-doodle-left" style="color: var(--mint-ink)">
+      <use href="#doodle-sun" />
+    </svg>
+    <svg class="header-doodle header-doodle-right" style="color: var(--lavender-ink)">
+      <use href="#doodle-cloud" />
+    </svg>
+    <h1 class="title" data-text="서정월드">
+      <span class="title-sparkle">✦</span>
+      <span class="title-text">서정월드</span>
+      <span class="title-sparkle">✦</span>
+      <svg class="title-underline" viewBox="0 0 400 24" preserveAspectRatio="none">
+        <path
+          d="M5,15 Q50,5 100,14 T200,12 T300,15 T395,10"
+          stroke="var(--pink-hot)"
+          stroke-width="5"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <path
+          d="M8,19 Q60,12 120,18 T240,17 T360,14"
+          stroke="var(--lemon-ink)"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+          opacity="0.7"
+        />
+      </svg>
+    </h1>
+    <p class="subtitle">
+      <span class="subtitle-marker">카메라에 비친 친구들이</span>
+      <br />
+      저마다의 노래를 불러줘요
+      <span class="subtitle-heart">♡</span>
+    </p>
   </header>
 
   <main>
-    <pre class="mobile-ascii hero" aria-hidden="true">
-   ≋≋≋   ◓   ≋≋≋     ≋≋≋   ◓   ≋≋≋
-  ╭⌒╮ 𓆏 ╭⌒╮         ╭⌒╮ 𓆏 ╭⌒╮
-  ╲ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╳ ╱
-   ◇━━━━╳  S E O J E O N G  ╳━━━━◇
-    ✦  the score of unseen things  ✦</pre>
-
-    <section class="stage">
-      <div class="video-container unflip" id="videoContainer">
-        <video id="video" autoplay muted playsinline></video>
-        <canvas id="overlay"></canvas>
-
-        <!-- HUD layers -->
-        <div class="hud hud-grid" aria-hidden="true"></div>
-        <div class="hud hud-corners" aria-hidden="true">
-          <span class="hud-corner tl"></span>
-          <span class="hud-corner tr"></span>
-          <span class="hud-corner bl"></span>
-          <span class="hud-corner br"></span>
-        </div>
-        <div class="hud hud-crosshair" aria-hidden="true">
-          <span class="cross-h"></span>
-          <span class="cross-v"></span>
-          <span class="cross-dot"></span>
-        </div>
-        <div class="hud hud-top" aria-hidden="true">
-          <div class="hud-left">
-            <span class="rec-dot"></span>
-            <span>REC</span>
-            <span class="hud-sep">│</span>
-            <span>FIGURE 001 / LIVE CAPTURE</span>
-          </div>
-          <div class="hud-right">
-            <span class="hud-coord">0,0 — ∞,∞</span>
-          </div>
-        </div>
-        <div class="hud hud-scale-left" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span>
-        </div>
-        <div class="hud hud-scale-bottom" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span>
-        </div>
-
-        <!-- Bottom controls inside stage -->
-        <div class="stage-bottom">
-          <div id="status" class="stage-status">STANDBY</div>
-          <button id="startBtn" class="btn-primary">
-            <span class="btn-sub">00</span>
-            <span class="btn-label">START</span>
-          </button>
-          <button
-            id="camSwitchBtn"
-            class="icon-btn"
-            title="전면 / 후면 카메라 전환"
-            aria-label="카메라 전환"
-          >⇄</button>
-        </div>
-
-        <button
-          id="fullscreenBtn"
-          class="icon-btn"
-          title="전체화면"
-          aria-label="전체화면"
-        >⛶</button>
-
-        <div id="overlayMessage" class="overlay-message">PRESS START</div>
+    <section class="video-container unflip" id="videoContainer">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <button
+        id="camSwitchBtn"
+        class="cam-switch-btn"
+        title="전면 / 후면 카메라 전환"
+        aria-label="카메라 전환"
+      >
+        🔄
+      </button>
+      <button
+        id="fullscreenBtn"
+        class="cam-switch-btn fullscreen-btn"
+        title="전체화면"
+        aria-label="전체화면"
+      >
+        ⛶
+      </button>
+      <div id="overlayMessage" class="overlay-message">
+        ▶ 시작 버튼을 눌러줘 !
       </div>
-
-      <!-- Floating panel: OBSERVATION (left) -->
-      <aside class="float-panel panel-observation">
-        <header class="panel-head">
-          <span class="panel-num">03</span>
-          <span class="panel-title">감지</span>
-          <span class="panel-sep">·</span>
-          <span class="panel-sub">OBSERVATION</span>
-        </header>
-        <ul id="detectionList" class="list"></ul>
-      </aside>
-
-      <!-- Floating panel: PARAMETERS (right) -->
-      <aside class="float-panel panel-parameters">
-        <header class="panel-head">
-          <span class="panel-num">02</span>
-          <span class="panel-title">설정</span>
-          <span class="panel-sep">·</span>
-          <span class="panel-sub">PARAMETERS</span>
-        </header>
-        <label>
-          임계값 <span class="val" id="confValue">0.50</span>
-          <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5" />
-        </label>
-        <label>
-          쿨다운 <span class="val" id="cdValue">1.5초</span>
-          <input type="range" id="cdSlider" min="0" max="5" step="0.1" value="1.5" />
-        </label>
-        <label>
-          추론 간격 <span class="val" id="intervalValue">120ms</span>
-          <input type="range" id="intervalSlider" min="50" max="500" step="10" value="120" />
-        </label>
-      </aside>
     </section>
 
-    <pre class="mobile-ascii ribbon" aria-hidden="true">
-  ✦ ── ◇ ── ╳ ── 𓆏 ── ╳ ── ◇ ── ✦
-       L I V I N G   S C O R E
-  ✦ ── ◇ ── ╳ ── 𓆏 ── ╳ ── ◇ ── ✦</pre>
+    <aside class="controls">
+      <button id="startBtn" class="primary">▶ 시작</button>
 
-    <!-- Under-grid: MODE + SCORE cards -->
-    <section class="under-grid">
-      <article class="card card-mode">
-        <header class="panel-head">
-          <span class="panel-num">01</span>
-          <span class="panel-title">재생</span>
-          <span class="panel-sep">·</span>
-          <span class="panel-sub">MODE</span>
-        </header>
+      <div id="status" class="status">대기 중이야 ~</div>
+
+      <fieldset>
+        <legend>♡ 재생 모드</legend>
         <label class="check">
           <input type="checkbox" id="multiMode" checked />
           <span>다중 사물 동시 재생</span>
         </label>
-        <p class="hint">꺼두면 한 번에 하나의 음만 들린다.</p>
-        <label class="check">
+        <p class="hint">끄면 한 번에 한 사운드만 나와요</p>
+        <label class="check" style="margin-top: 8px;">
           <input type="checkbox" id="distanceMode" />
           <span>사람 기준 거리 볼륨</span>
         </label>
-        <p class="hint">거리는 크기를 결정한다.</p>
+        <p class="hint">사람과 가까운 친구는 더 큰 소리로 불러요 ♪</p>
         <label>
-          감쇠 <span class="val" id="falloffValue">2.0</span>
+          감쇠 강도 <span class="val" id="falloffValue">2.0</span>
           <input type="range" id="falloffSlider" min="0.5" max="5" step="0.1" value="2.0" />
         </label>
-      </article>
+      </fieldset>
 
-      <article class="card card-score">
-        <header class="panel-head">
-          <span class="panel-num">04</span>
-          <span class="panel-title">악보</span>
-          <span class="panel-sep">·</span>
-          <span class="panel-sub">SCORE</span>
-        </header>
+      <fieldset>
+        <legend>✦ 설정</legend>
+        <label>
+          신뢰도 임계값 <span class="val" id="confValue">0.50</span>
+          <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5" />
+        </label>
+        <label>
+          쿨다운 (초) <span class="val" id="cdValue">1.5</span>
+          <input type="range" id="cdSlider" min="0" max="5" step="0.1" value="1.5" />
+        </label>
+        <label>
+          추론 간격 (ms) <span class="val" id="intervalValue">120</span>
+          <input type="range" id="intervalSlider" min="50" max="500" step="10" value="120" />
+        </label>
+        <p class="hint">값을 늘리면 영상이 더 부드러워져요</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>♥ 지금 보이는 친구들</legend>
+        <ul id="detectionList" class="list"></ul>
+      </fieldset>
+
+      <fieldset class="mapping-fieldset">
+        <legend>♪ 사운드 매핑</legend>
         <p class="hint">
-          사물에 음을 할당한다. 하나의 음은 여러 대상을 공유할 수 있다.
+          원하는 사물에만 사운드를 붙여서 들어요. 여러 사물을 묶어 카테고리로
+          만들 수도 있어요 ♡
         </p>
 
         <div class="add-form">
@@ -187,79 +271,62 @@
             type="text"
             id="mapName"
             class="text-input"
-            placeholder="제목 (선택)"
+            placeholder="이름 (선택) — 예: 우리 강아지"
           />
-          <div class="picker-row">
-            <div class="class-picker">
-              <select id="classPicker">
-                <option value="">+ 사물 추가</option>
-              </select>
-              <div id="classChips" class="chips"></div>
-            </div>
-            <details class="teach-section">
-              <summary>직접 가르치기</summary>
-              <div class="teach-form">
-                <p class="hint">
-                  COCO 에 없는 대상을 카메라가 기억한다. 시작 후, 대상을 중심에 3초.
-                </p>
-                <input
-                  type="text"
-                  id="teachName"
-                  class="text-input"
-                  placeholder="대상 이름"
-                />
-                <button id="teachBtn" class="add-btn" type="button">
-                  3초 학습
-                </button>
-                <div id="teachStatus" class="teach-status"></div>
-                <ul id="taughtList" class="list taught-list"></ul>
-              </div>
-            </details>
+
+          <div class="class-picker">
+            <select id="classPicker">
+              <option value="">+ 사물 추가하기...</option>
+            </select>
+            <div id="classChips" class="chips"></div>
           </div>
+
           <div class="add-actions">
-            <button id="addToneBtn" class="add-btn" type="button">
-              기본음
+            <button id="addToneBtn" class="add-btn tone-btn" type="button">
+              ♪ 기본 톤으로 추가
             </button>
-            <button id="addFileBtn" class="add-btn" type="button">
-              파일
+            <button id="addFileBtn" class="add-btn file-btn-2" type="button">
+              📁 파일로 추가
             </button>
             <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
           </div>
         </div>
 
-        <div class="mapping-divider">— 사운드 목록 —</div>
+        <details class="teach-section">
+          <summary>✨ 내 사물 직접 가르치기 (카메라로 학습)</summary>
+          <div class="teach-form">
+            <p class="hint">
+              COCO 에 없는 사물을 카메라로 보여주면 AI 가 학습해요.
+              카메라를 <strong>시작</strong>한 뒤, 학습시킬 사물을 화면 가운데
+              크게 비춰주세요 ♡
+            </p>
+            <input
+              type="text"
+              id="teachName"
+              class="text-input"
+              placeholder="사물 이름 (예: 바둑이, 내 인형)"
+            />
+            <button id="teachBtn" class="add-btn tone-btn" type="button">
+              📸 3초간 학습 시작
+            </button>
+            <div id="teachStatus" class="teach-status"></div>
+            <ul id="taughtList" class="list taught-list"></ul>
+          </div>
+        </details>
+
+        <div class="mapping-divider">▼ 내가 만든 매핑 ▼</div>
 
         <ul id="soundList" class="list mapping-list">
-          <li class="empty-hint">아직 비어 있다.</li>
+          <li class="empty-hint">
+            위에서 사물을 골라 사운드를 추가해보세요 ♡
+          </li>
         </ul>
-      </article>
-    </section>
+      </fieldset>
+    </aside>
   </main>
 
-  <pre class="mobile-ascii sigil" aria-hidden="true">
-       ╭───╮     ╭───╮
-      ╱ ⌒ ╲   ╱ ⌒ ╲
-     ╲  ╳  ╳  ╳  ╳  ╱
-      ╲ ╱ ╲ ╱ ╲ ╱
-       𓆏  ⫻⫻⫻  𓆏
-      ╱ ╲ ╱ ╲ ╱ ╲
-     ◇━━━━╳━━━━◇
-      ·  ·  ·  ·  ·
-  objects observed ── heard ── ∞</pre>
-
   <footer>
-    <div class="footer-top-line"></div>
-    <div class="footer-content">
-      <div class="footer-left">
-        <span>SEOJEONG / 서정월드</span>
-        <span class="sep">—</span>
-        <span>A PERCEPTUAL SCORE</span>
-      </div>
-      <div class="footer-right">
-        <span>TF · COCO-SSD · KNN · WEB AUDIO</span>
-      </div>
-    </div>
-    <div class="footer-sub">objects observed become objects heard — ∞</div>
+    made with ♡ · 서정월드
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
@@ -268,19 +335,5 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   <script src="vendor/mespeak/mespeak.js"></script>
   <script src="app.js"></script>
-  <script>
-    (function () {
-      const el = document.getElementById('timeNow');
-      if (!el) return;
-      const pad = (n) => String(n).padStart(2, '0');
-      function tick() {
-        const d = new Date();
-        el.textContent =
-          pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-      }
-      tick();
-      setInterval(tick, 1000);
-    })();
-  </script>
 </body>
 </html>
