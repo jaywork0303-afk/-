@@ -70,6 +70,7 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
 const statusEl = document.getElementById('status');
 const overlayMessage = document.getElementById('overlayMessage');
 const multiModeEl = document.getElementById('multiMode');
@@ -149,10 +150,10 @@ confSlider.addEventListener('input', () => {
   confValue.textContent = parseFloat(confSlider.value).toFixed(2);
 });
 cdSlider.addEventListener('input', () => {
-  cdValue.textContent = parseFloat(cdSlider.value).toFixed(1);
+  cdValue.textContent = parseFloat(cdSlider.value).toFixed(1) + '초';
 });
 intervalSlider.addEventListener('input', () => {
-  intervalValue.textContent = intervalSlider.value;
+  intervalValue.textContent = intervalSlider.value + 'ms';
 });
 falloffSlider.addEventListener('input', () => {
   falloffValue.textContent = parseFloat(falloffSlider.value).toFixed(1);
@@ -1200,14 +1201,81 @@ function playSounds(predictions) {
     }
   }
 
-  // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 읽어준다 ──
+  // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 동시에 읽어준다 ──
   for (const [cls, vol] of classVol) {
     if (findEntriesForClass(cls).length > 0) continue; // 이미 매핑 있음
     const ttsId = `__tts__${cls}`;
     if (now - (lastPlayed[ttsId] || 0) < cd) continue;
-    speakClassName(cls, vol);
+    // meSpeak 가 준비됐으면 진짜 병렬, 아니면 speechSynthesis 폴백
+    if (__meSpeakReady) {
+      speakParallel(cls, vol);
+    } else {
+      speakClassName(cls, vol);
+    }
     lastPlayed[ttsId] = now;
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// meSpeak: 진짜 동시 재생 가능한 TTS
+// speechSynthesis 와 달리 raw PCM 을 받아서 AudioBufferSourceNode 로
+// 여러 개를 동시에 재생할 수 있다 (브라우저 단일 음성 채널 한계 우회).
+// ══════════════════════════════════════════════════════════════
+let __meSpeakReady = false;
+const __ttsBufferCache = new Map(); // class name -> AudioBuffer
+
+async function ensureMeSpeak() {
+  if (__meSpeakReady) return true;
+  if (typeof meSpeak === 'undefined') return false;
+  try {
+    await new Promise((res) => meSpeak.loadConfig('vendor/mespeak/mespeak_config.json', res));
+    await new Promise((res) => meSpeak.loadVoice('vendor/mespeak/en.json', res));
+    __meSpeakReady = true;
+    return true;
+  } catch (e) {
+    console.warn('meSpeak 초기화 실패:', e);
+    return false;
+  }
+}
+
+// 클래스 이름을 PCM buffer 로 합성해서 캐시에 저장
+async function getOrSynthBuffer(cls) {
+  if (__ttsBufferCache.has(cls)) return __ttsBufferCache.get(cls);
+  if (!__meSpeakReady) {
+    const ok = await ensureMeSpeak();
+    if (!ok) return null;
+  }
+  // meSpeak.speak 는 rawdata 옵션으로 wav 의 Uint8Array 를 반환
+  const wav = meSpeak.speak(cls, {
+    rawdata: 'array',
+    speed: 175,
+    pitch: 50,
+    amplitude: 100,
+  });
+  if (!wav) return null;
+  const u8 = wav instanceof Uint8Array ? wav : new Uint8Array(wav);
+  const ctx = ensureAudioContext();
+  try {
+    const buf = await ctx.decodeAudioData(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength));
+    __ttsBufferCache.set(cls, buf);
+    return buf;
+  } catch (e) {
+    console.warn('TTS decode 실패:', cls, e);
+    return null;
+  }
+}
+
+// 진짜 병렬 재생: 새 AudioBufferSourceNode 를 매번 생성해 동시에 출력
+async function speakParallel(cls, volume = 1.0) {
+  const buf = await getOrSynthBuffer(cls);
+  if (!buf) return;
+  const ctx = ensureAudioContext();
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.value = Math.max(0.15, Math.min(1, volume));
+  src.connect(gain).connect(ctx.destination);
+  src.start();
 }
 
 // 모바일에서 speechSynthesis 를 사용자 제스처 안에서 "깨우기" 위한 helper.
@@ -1525,6 +1593,25 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
+// ── 전체화면 토글 (CRT 필터/스캔라인/wobble 모두 유지) ──
+if (fullscreenBtn) {
+  fullscreenBtn.addEventListener('click', async () => {
+    const target = document.getElementById('videoContainer');
+    if (!target) return;
+    try {
+      if (!document.fullscreenElement) {
+        if (target.requestFullscreen) await target.requestFullscreen();
+        else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    } catch (e) {
+      console.warn('전체화면 실패:', e);
+    }
+  });
+}
+
 startBtn.addEventListener('click', async () => {
   if (running) {
     running = false;
@@ -1546,6 +1633,8 @@ startBtn.addEventListener('click', async () => {
     // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
     // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
     unlockSpeechSynthesis();
+    // meSpeak (진짜 병렬 TTS) 비동기 로드 — 끝나면 자동으로 fallback 대신 사용
+    ensureMeSpeak();
 
     // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
     if (Object.keys(pendingSoundBuffers).length > 0) {

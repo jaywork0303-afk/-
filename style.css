@@ -3145,6 +3145,51 @@ footer {
   /* 글래스 하이라이트용 별도 레이어 (video-container 내부 video 위에) */
   #video::after { display: none; }
 
+  /* ── 전체화면 모드: viewport 가득 채움 + CRT 필터 유지 ── */
+  #videoContainer:fullscreen,
+  #videoContainer:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    padding: 0 !important;
+    background: #000 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+  #videoContainer:fullscreen #video,
+  #videoContainer:fullscreen #overlay,
+  #videoContainer:-webkit-full-screen #video,
+  #videoContainer:-webkit-full-screen #overlay {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    border-radius: 50% / 12% !important;
+    /* 필터 동일하게 유지 */
+  }
+  #videoContainer:fullscreen::after,
+  #videoContainer:-webkit-full-screen::after {
+    /* 스캔라인/노이즈/vignette 도 viewport 전체에 적용 */
+    inset: 0 !important;
+    border-radius: 50% / 12% !important;
+    z-index: 5 !important;
+  }
+  #videoContainer:fullscreen::before,
+  #videoContainer:-webkit-full-screen::before {
+    /* 크레파스 보더는 전체화면에선 거슬리니 숨김 */
+    display: none !important;
+  }
+  /* stage-bottom 컨트롤은 전체화면에서도 보이게 */
+  #videoContainer:fullscreen .stage-bottom,
+  #videoContainer:-webkit-full-screen .stage-bottom {
+    z-index: 10 !important;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.6) 60%,
+      rgba(0, 0, 0, 0.95) 100%) !important;
+  }
+
   /* overlayMessage PRESS START — 비디오 안에 중앙 고정 */
   #overlayMessage,
   .overlay-message {
