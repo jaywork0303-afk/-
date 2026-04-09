@@ -1066,3 +1066,293 @@ footer {
   .hud-scale-left,
   .hud-scale-bottom { display: none; }
 }
+
+/* ============================================================
+   IRREGULAR / GLITCH MAKEOVER
+   현대 미술 · 비정형 · jagged edges · asymmetric tilt · 지지직
+   ============================================================ */
+
+/* ---------- photocopy / xerox grain over whole page ---------- */
+.grain {
+  position: fixed;
+  inset: -140px;
+  pointer-events: none;
+  z-index: 92;
+  opacity: 0.17;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 260px 260px;
+  animation: grain-shift 1.4s steps(8) infinite;
+}
+@keyframes grain-shift {
+  0%   { transform: translate(0, 0); }
+  12%  { transform: translate(-12px, 6px); }
+  25%  { transform: translate(8px, -10px); }
+  37%  { transform: translate(-6px, -12px); }
+  50%  { transform: translate(14px, 4px); }
+  62%  { transform: translate(-10px, 8px); }
+  75%  { transform: translate(6px, -6px); }
+  87%  { transform: translate(-4px, 10px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ---------- rare full-screen static-flash ---------- */
+.static-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 93;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 48%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 52%,
+    transparent 100%);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: static-flash 9s infinite;
+}
+@keyframes static-flash {
+  0%, 96%, 100% { opacity: 0; transform: translateY(-30%) scaleY(1); }
+  96.4%         { opacity: 0.9; transform: translateY(30%)  scaleY(1.4); }
+  96.8%         { opacity: 0;   transform: translateY(60%)  scaleY(1); }
+}
+
+/* ---------- scanlines over main content area ---------- */
+main { isolation: isolate; }
+main::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 3px,
+    rgba(255, 255, 255, 0.022) 3px,
+    rgba(255, 255, 255, 0.022) 4px
+  );
+  mix-blend-mode: overlay;
+}
+
+/* ---------- video stage gets jagged trim ---------- */
+.video-container {
+  clip-path: polygon(
+    0% 1%, 6% 0%, 14% 1%, 26% 0%, 38% 1%, 50% 0%, 62% 1%, 74% 0%, 86% 1%, 100% 0%,
+    99% 12%, 100% 24%, 99% 38%, 100% 50%, 99% 62%, 100% 74%, 99% 86%, 100% 100%,
+    92% 99%, 80% 100%, 66% 99%, 52% 100%, 38% 99%, 24% 100%, 10% 99%, 0% 100%,
+    1% 88%, 0% 76%, 1% 62%, 0% 48%, 1% 32%, 0% 16%
+  );
+}
+
+/* ---------- floating glass panels: tilt + jagged clip ---------- */
+.float-panel {
+  border: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 32px 90px rgba(0, 0, 0, 0.62),
+    0 6px 18px rgba(0, 0, 0, 0.42);
+}
+.panel-observation {
+  transform: rotate(-1.4deg);
+  transform-origin: 20% 0%;
+  clip-path: polygon(
+    0% 3%, 7% 0%, 18% 2%, 30% 0%, 42% 2%, 54% 0%, 66% 2%, 78% 0%, 90% 2%, 100% 0%,
+    97% 14%, 100% 26%, 97% 40%, 100% 52%, 97% 66%, 100% 80%, 97% 92%, 100% 100%,
+    88% 98%, 72% 100%, 56% 98%, 40% 100%, 24% 98%, 10% 100%, 0% 96%,
+    3% 80%, 0% 64%, 2% 48%, 0% 32%, 2% 18%
+  );
+  animation: glitch-panel-l 13s infinite 1.2s;
+}
+.panel-parameters {
+  transform: rotate(1.7deg);
+  transform-origin: 80% 0%;
+  clip-path: polygon(
+    0% 0%, 10% 2%, 22% 0%, 35% 2%, 48% 0%, 60% 2%, 72% 0%, 84% 2%, 96% 0%, 100% 4%,
+    98% 18%, 100% 32%, 96% 46%, 100% 60%, 97% 74%, 100% 88%, 99% 100%,
+    88% 98%, 74% 100%, 60% 97%, 46% 100%, 32% 98%, 16% 100%, 4% 99%, 0% 92%,
+    3% 76%, 0% 60%, 2% 44%, 0% 28%, 2% 14%
+  );
+  animation: glitch-panel-r 11s infinite 0.4s;
+}
+
+/* ---------- under-grid: asymmetric overlapping cards ---------- */
+.under-grid {
+  display: grid;
+  grid-template-columns: 0.82fr 1.75fr;
+  gap: 24px;
+  margin-top: 104px;
+  margin-bottom: 88px;
+  align-items: start;
+  position: relative;
+  overflow: visible;
+}
+.card {
+  position: relative;
+  overflow: visible;
+  border: none;
+  background: rgba(8, 8, 10, 0.72);
+  backdrop-filter: blur(28px) saturate(1.18);
+  -webkit-backdrop-filter: blur(28px) saturate(1.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 32px 80px rgba(0, 0, 0, 0.62),
+    0 8px 22px rgba(0, 0, 0, 0.42);
+}
+.card::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 50%);
+}
+.card-mode {
+  transform: rotate(-2.6deg) translate(-20px, 38px);
+  transform-origin: 30% 10%;
+  z-index: 3;
+  margin-top: 32px;
+  clip-path: polygon(
+    2% 4%, 9% 0%, 22% 2%, 36% 0%, 50% 3%, 64% 0%, 78% 2%, 90% 0%, 100% 4%,
+    97% 22%, 100% 38%, 96% 56%, 100% 72%, 97% 88%, 100% 100%,
+    88% 98%, 72% 100%, 56% 97%, 40% 100%, 24% 98%, 10% 100%, 0% 96%,
+    3% 80%, 0% 62%, 2% 44%, 0% 24%
+  );
+  animation: glitch-mode 9s infinite 0.8s;
+}
+.card-score {
+  transform: rotate(0.7deg) translate(16px, -20px);
+  transform-origin: 70% 0%;
+  z-index: 2;
+  clip-path: polygon(
+    0% 2%, 8% 0%, 20% 3%, 34% 0%, 48% 2%, 62% 0%, 75% 3%, 88% 0%, 100% 4%,
+    97% 16%, 100% 30%, 96% 44%, 100% 58%, 97% 72%, 100% 86%, 99% 100%,
+    88% 98%, 74% 100%, 58% 97%, 44% 100%, 28% 98%, 14% 100%, 2% 99%,
+    0% 86%, 3% 70%, 0% 54%, 2% 38%, 0% 22%
+  );
+  animation: glitch-score 11s infinite 2.4s;
+}
+
+/* ---------- glitch keyframes (지지직 stutter) ---------- */
+@keyframes glitch-mode {
+  0%, 88%, 100%   { transform: rotate(-2.6deg) translate(-20px, 38px); }
+  88.3%           { transform: rotate(-2.9deg) translate(-15px, 41px); }
+  88.6%           { transform: rotate(-2.3deg) translate(-24px, 35px); }
+  88.9%           { transform: rotate(-2.7deg) translate(-18px, 39px); }
+  89.2%           { transform: rotate(-2.5deg) translate(-22px, 37px); }
+  89.5%           { transform: rotate(-2.6deg) translate(-20px, 38px); }
+}
+@keyframes glitch-score {
+  0%, 84%, 100%   { transform: rotate(0.7deg) translate(16px, -20px); }
+  84.3%           { transform: rotate(0.4deg) translate(20px, -17px); }
+  84.6%           { transform: rotate(1.0deg) translate(12px, -23px); }
+  84.9%           { transform: rotate(0.5deg) translate(18px, -18px); }
+  85.2%           { transform: rotate(0.8deg) translate(14px, -22px); }
+  85.5%           { transform: rotate(0.7deg) translate(16px, -20px); }
+}
+@keyframes glitch-panel-l {
+  0%, 92%, 100%   { transform: rotate(-1.4deg) translate(0, 0); }
+  92.3%           { transform: rotate(-1.7deg) translate(-3px, 1px); }
+  92.6%           { transform: rotate(-1.1deg) translate(3px, -1px); }
+  92.9%           { transform: rotate(-1.5deg) translate(-1px, 2px); }
+  93.2%           { transform: rotate(-1.4deg) translate(0, 0); }
+}
+@keyframes glitch-panel-r {
+  0%, 90%, 100%   { transform: rotate(1.7deg) translate(0, 0); }
+  90.3%           { transform: rotate(1.4deg) translate(3px, -1px); }
+  90.6%           { transform: rotate(2.0deg) translate(-3px, 1px); }
+  90.9%           { transform: rotate(1.6deg) translate(1px, 2px); }
+  91.2%           { transform: rotate(1.7deg) translate(0, 0); }
+}
+
+/* ---------- wonky typography (현대 미술 typographic feel) ---------- */
+.panel-num {
+  display: inline-block;
+  transform: rotate(-5deg) translateY(2px);
+  font-variation-settings: 'SOFT' 100, 'opsz' 36, 'WONK' 1;
+}
+.brand-name em {
+  display: inline-block;
+  transform: rotate(-1.6deg);
+  font-variation-settings: 'SOFT' 100, 'opsz' 36, 'WONK' 1;
+}
+.footer-sub {
+  display: inline-block;
+  transform: rotate(-0.6deg);
+  font-variation-settings: 'SOFT' 100, 'opsz' 18, 'WONK' 1;
+}
+.mapping-divider {
+  transform: rotate(-0.5deg);
+  transform-origin: center;
+}
+.hint {
+  font-variation-settings: 'SOFT' 80, 'opsz' 14, 'WONK' 1;
+}
+
+/* small splice-mark accent dots above under-grid */
+.under-grid::before {
+  content: '◦   ◦   ◦   ◦   ◦';
+  position: absolute;
+  top: -44px;
+  left: 6%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.6em;
+  color: var(--text-faint);
+  transform: rotate(-1.8deg);
+  pointer-events: none;
+}
+.under-grid::after {
+  content: '— 비정형 / IRREGULAR FIG. ∞ —';
+  position: absolute;
+  bottom: -36px;
+  right: 8%;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  color: var(--text-3);
+  transform: rotate(1.2deg);
+  pointer-events: none;
+}
+
+/* faint horizontal glitch bar inside each card */
+.card > .panel-head {
+  position: relative;
+}
+.card > .panel-head::after {
+  content: '';
+  position: absolute;
+  top: 40%;
+  right: -8px;
+  width: 30px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(-4deg);
+}
+
+/* ---------- mobile: flatten irregular effects for usability ---------- */
+@media (max-width: 900px) {
+  .video-container { clip-path: none; }
+  .panel-observation,
+  .panel-parameters {
+    transform: none;
+    clip-path: none;
+    animation: none;
+  }
+  .under-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    margin-top: 36px;
+    margin-bottom: 28px;
+  }
+  .under-grid::before,
+  .under-grid::after { display: none; }
+  .card-mode,
+  .card-score {
+    transform: none;
+    clip-path: none;
+    animation: none;
+    margin-top: 0;
+  }
+  .grain { opacity: 0.1; }
+  .static-flash { display: none; }
+  main::before { display: none; }
+  .panel-num { transform: rotate(-3deg); }
+}
