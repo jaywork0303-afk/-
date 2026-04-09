@@ -3145,6 +3145,32 @@ footer {
   /* 글래스 하이라이트용 별도 레이어 (video-container 내부 video 위에) */
   #video::after { display: none; }
 
+  /* ── 전체화면 버튼: 비디오 우상단 ── */
+  #fullscreenBtn {
+    position: absolute !important;
+    top: 16px !important;
+    right: 16px !important;
+    z-index: 9 !important;
+    width: 40px !important;
+    height: 40px !important;
+    background: rgba(10, 9, 11, 0.6) !important;
+    backdrop-filter: blur(2px);
+    color: var(--ink-1) !important;
+    border: 2px solid var(--ink-1) !important;
+    font-size: 18px;
+    transform: rotate(0deg);
+  }
+  #fullscreenBtn:hover {
+    background: var(--ink-1) !important;
+    color: var(--paper-0) !important;
+    transform: rotate(0deg) scale(1.06);
+  }
+  #videoContainer:fullscreen #fullscreenBtn,
+  #videoContainer:-webkit-full-screen #fullscreenBtn {
+    top: 24px !important;
+    right: 24px !important;
+  }
+
   /* ── 전체화면 모드: viewport 가득 채움 + CRT 필터 유지 ── */
   #videoContainer:fullscreen,
   #videoContainer:-webkit-full-screen {
