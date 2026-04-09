@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+  <!-- ==== Crossed diagonal bones with diamond endpoints ==== -->
+  <!-- Left bone -->
+  <path d="M250 360 L110 470"/>
+  <!-- Right bone -->
+  <path d="M350 360 L490 470"/>
+
+  <!-- Left diamond endpoint -->
+  <path d="M110 470 L60 440 L30 470 L60 500 Z"/>
+  <!-- Inner diamond spark (left) -->
+  <path d="M85 470 L70 460 L60 470 L70 480 Z" fill="currentColor" stroke="none"/>
+
+  <!-- Right diamond endpoint -->
+  <path d="M490 470 L540 440 L570 470 L540 500 Z"/>
+  <!-- Inner diamond spark (right) -->
+  <path d="M515 470 L530 460 L540 470 L530 480 Z" fill="currentColor" stroke="none"/>
+
+  <!-- ==== Central body: heart / skull fused shape ==== -->
+  <path d="M300 200
+           C250 140, 170 150, 180 230
+           C185 280, 230 310, 260 340
+           C280 360, 295 380, 300 410
+           C305 380, 320 360, 340 340
+           C370 310, 415 280, 420 230
+           C430 150, 350 140, 300 200 Z"/>
+
+  <!-- Three diagonal slash marks inside body -->
+  <line x1="275" y1="265" x2="260" y2="320"/>
+  <line x1="300" y1="265" x2="285" y2="320"/>
+  <line x1="325" y1="265" x2="310" y2="320"/>
+
+  <!-- ==== Left spiral tendril (curly horn) ==== -->
+  <path d="M200 200
+           C150 150, 80 165, 70 230
+           C62 285, 120 310, 150 290
+           C175 275, 170 240, 135 240
+           C105 240, 100 275, 125 280"/>
+
+  <!-- Outer curl flourish (left) -->
+  <path d="M70 230 C45 210, 20 235, 35 265"/>
+
+  <!-- ==== Right spiral tendril (curly horn) ==== -->
+  <path d="M400 200
+           C450 150, 520 165, 530 230
+           C538 285, 480 310, 450 290
+           C425 275, 430 240, 465 240
+           C495 240, 500 275, 475 280"/>
+
+  <!-- Outer curl flourish (right) -->
+  <path d="M530 230 C555 210, 580 235, 565 265"/>
+</svg>
