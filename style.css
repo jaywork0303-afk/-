@@ -3366,12 +3366,88 @@ footer {
       drop-shadow(0 0 12px rgba(232, 74, 44, 0.6))
       drop-shadow(1px 1px 0 var(--ink-4)) !important;
   }
-  /* 혹시 ◉ char 가 새어나오는 경우 빨강으로 강제 */
+  /* ◉ char 는 OS 의 emoji 폰트가 파란 원으로 렌더 → 완전히 감춤 */
   .brand .brand-mark,
   span.brand-mark {
-    color: #e84a2c !important;
-    -webkit-text-fill-color: #e84a2c !important;
-    text-shadow: 0 0 8px #e84a2c, 0 0 14px rgba(232, 74, 44, 0.5) !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    text-indent: -9999px !important;
+    overflow: hidden !important;
+  }
+
+  /* ── INDEX OF WORKS 디바이더 색감 통일 ── */
+  .mapping-divider {
+    color: var(--ink-3) !important;
+    font-family: var(--font-hand);
+    background: none !important;
+    -webkit-text-fill-color: var(--ink-3) !important;
+    letter-spacing: 0.28em !important;
+    font-size: 11px !important;
+    text-align: center;
+    margin: 18px 14px 10px !important;
+  }
+  .mapping-divider::before,
+  .mapping-divider::after {
+    color: var(--ink-4) !important;
+    -webkit-text-fill-color: var(--ink-4) !important;
+    background: none !important;
+  }
+
+  /* ── STUDY 버튼을 사물 추가 버튼 옆으로 가로 배치 ── */
+  .add-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  .add-actions .teach-section {
+    margin: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+    flex-basis: auto !important;
+  }
+  .add-actions details.teach-section > summary {
+    list-style: none;
+    display: inline-block;
+    padding: 10px 16px !important;
+    font-family: var(--font-hand);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--ink-1) !important;
+    background: none !important;
+    border: 1.5px dashed var(--ink-1) !important;
+    border-radius: 0 !important;
+    cursor: pointer;
+    transform: rotate(-1deg);
+  }
+  .add-actions details.teach-section > summary::-webkit-details-marker,
+  .add-actions details.teach-section > summary::marker {
+    display: none;
+  }
+  .add-actions details.teach-section > summary::before {
+    content: "✎ ";
+    color: var(--ink-2);
+    margin-right: 4px;
+  }
+  .add-actions details.teach-section[open] > summary {
+    background: var(--ink-1) !important;
+    color: var(--paper-0) !important;
+  }
+  /* 열렸을 때 teach-form 은 add-actions 아래로 100% 폭 차지 */
+  .add-actions details.teach-section[open] {
+    flex-basis: 100% !important;
+    margin-top: 8px !important;
+    padding: 10px 12px !important;
+    border-left: 2px dashed var(--ink-4) !important;
+  }
+  .teach-form {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
   /* under-grid 카드 사이 ASCII (✦ ◇ ╳━━━━╳ 𓆏) 제거 */

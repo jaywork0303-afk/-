@@ -1199,6 +1199,33 @@ function playSounds(predictions) {
       lastPlayed.__last__ = now;
     }
   }
+
+  // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 읽어준다 ──
+  for (const [cls, vol] of classVol) {
+    if (findEntriesForClass(cls).length > 0) continue; // 이미 매핑 있음
+    const ttsId = `__tts__${cls}`;
+    if (now - (lastPlayed[ttsId] || 0) < cd) continue;
+    speakClassName(cls, vol);
+    lastPlayed[ttsId] = now;
+  }
+}
+
+// ── Web Speech API TTS: 기본음 대신 사물 이름을 읽는다 ──
+function speakClassName(cls, volume = 1.0) {
+  if (!('speechSynthesis' in window)) return;
+  // 이미 말하는 중이면 큐에 쌓이지 않게 skip
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
+  const u = new SpeechSynthesisUtterance(cls);
+  u.rate = 1.05;
+  u.pitch = 1.0;
+  u.volume = Math.max(0.15, Math.min(1, volume));
+  // 영어 클래스 이름(COCO)이 대부분이므로 en-US 우선
+  u.lang = /^[a-zA-Z\s_-]+$/.test(cls) ? 'en-US' : 'ko-KR';
+  try {
+    window.speechSynthesis.speak(u);
+  } catch (e) {
+    console.warn('TTS 실패:', e);
+  }
 }
 
 async function loadModel() {

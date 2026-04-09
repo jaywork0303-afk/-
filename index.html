@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Gaegu:wght@400;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=20260409-crt4" />
+  <link rel="stylesheet" href="style.css?v=20260409-tts" />
 </head>
 <body>
   <div class="ambient-grid" aria-hidden="true"></div>
@@ -196,28 +196,27 @@
               FILE · 파일
             </button>
             <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
+            <details class="teach-section">
+              <summary>STUDY · 직접 가르치기</summary>
+              <div class="teach-form">
+                <p class="hint">
+                  COCO 에 없는 대상을 카메라가 기억한다. 시작 후, 대상을 중심에 3초.
+                </p>
+                <input
+                  type="text"
+                  id="teachName"
+                  class="text-input"
+                  placeholder="SUBJECT · 이름"
+                />
+                <button id="teachBtn" class="add-btn" type="button">
+                  LEARN · 3s 학습
+                </button>
+                <div id="teachStatus" class="teach-status"></div>
+                <ul id="taughtList" class="list taught-list"></ul>
+              </div>
+            </details>
           </div>
         </div>
-
-        <details class="teach-section">
-          <summary>STUDY · 직접 가르치기</summary>
-          <div class="teach-form">
-            <p class="hint">
-              COCO 에 없는 대상을 카메라가 기억한다. 시작 후, 대상을 중심에 3초.
-            </p>
-            <input
-              type="text"
-              id="teachName"
-              class="text-input"
-              placeholder="SUBJECT · 이름"
-            />
-            <button id="teachBtn" class="add-btn" type="button">
-              LEARN · 3s 학습
-            </button>
-            <div id="teachStatus" class="teach-status"></div>
-            <ul id="taughtList" class="list taught-list"></ul>
-          </div>
-        </details>
 
         <div class="mapping-divider">— INDEX OF WORKS —</div>
 
