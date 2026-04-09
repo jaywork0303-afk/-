@@ -3029,5 +3029,209 @@ footer {
   .overlay-message::after {
     content: none !important;
   }
+
+  /* float-panel ::after (◟━━━◞) 제거 — ::before 는 크레파스 보더로 유지 */
+  .float-panel::after,
+  .panel-observation::after,
+  .panel-parameters::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+    background-image: none !important;
+  }
+
+  /* ══════════════════════════════════════════════
+     STANDBY 인디케이터 & 네온 글로우 제거
+     ══════════════════════════════════════════════ */
+  #status,
+  .stage-status {
+    background: var(--paper-0) !important;
+    color: var(--ink-1) !important;
+    border: 2px solid var(--ink-1) !important;
+    border-radius: 0 !important;
+    padding: 6px 14px !important;
+    box-shadow: 2px 2px 0 var(--paper-0) !important;
+    font-family: var(--font-hand) !important;
+    font-size: 13px !important;
+    letter-spacing: 0.2em !important;
+    transform: rotate(-1deg);
+    position: relative;
+  }
+  #status::before,
+  .stage-status::before {
+    content: "✕" !important;
+    display: inline-block;
+    color: var(--ink-1) !important;
+    background: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    text-shadow: 1px 1px 0 var(--paper-0) !important;
+    margin-right: 6px;
+    font-family: var(--font-hand);
+    transform: rotate(12deg);
+  }
+  #status.running::before,
+  .stage-status.running::before {
+    content: "●" !important;
+    color: var(--ink-1) !important;
+    animation: blink-ink 1.4s steps(2) infinite;
+  }
+  @keyframes blink-ink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  /* ══════════════════════════════════════════════
+     카메라 박스: 곡률 있는 브라운관 CRT 필터
+     ══════════════════════════════════════════════ */
+  .stage .video-container,
+  #videoContainer {
+    border-radius: 28px / 22px !important;
+    overflow: hidden !important;
+    background: #000 !important;
+    box-shadow:
+      inset 0 0 60px rgba(0, 0, 0, 0.95),
+      inset 0 0 120px rgba(239, 230, 211, 0.04),
+      0 0 0 3px var(--paper-0),
+      0 0 0 4px var(--ink-4),
+      0 0 40px rgba(0, 0, 0, 0.8) !important;
+  }
+  /* video 자체도 살짝 곡률 + 색감 필터 */
+  #video,
+  #overlay {
+    border-radius: 24px / 18px !important;
+    filter:
+      contrast(1.08) saturate(0.55) brightness(0.95)
+      sepia(0.15) hue-rotate(-10deg) !important;
+  }
+  /* CRT 스캔라인 + vignette 오버레이 */
+  .stage .video-container::after,
+  #videoContainer::after {
+    content: "" !important;
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    pointer-events: none !important;
+    background:
+      /* vignette */
+      radial-gradient(ellipse at center,
+        transparent 40%,
+        rgba(0, 0, 0, 0.45) 80%,
+        rgba(0, 0, 0, 0.85) 100%),
+      /* 수평 스캔라인 */
+      repeating-linear-gradient(0deg,
+        rgba(0, 0, 0, 0.28) 0 1px,
+        transparent 1px 3px),
+      /* 미세한 그레인 */
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='11'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.9  0 0 0 0 0.83  0 0 0 0.08 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>") !important;
+    mix-blend-mode: multiply !important;
+    border-radius: 24px / 18px !important;
+    z-index: 5 !important;
+    animation: crt-flicker 5s ease-in-out infinite !important;
+  }
+  @keyframes crt-flicker {
+    0%, 100% { opacity: 0.85; }
+    45%      { opacity: 0.9; }
+    48%      { opacity: 0.7; }
+    50%      { opacity: 0.95; }
+    95%      { opacity: 0.82; }
+  }
+  /* CRT 글래스 하이라이트 */
+  .stage .video-container::before,
+  #videoContainer::before {
+    /* 기존 크레파스 보더 유지 + 위에 글래스 광택 추가로 레이어링 */
+    z-index: 4 !important;
+  }
+  /* 글래스 하이라이트용 별도 레이어 (video-container 내부 video 위에) */
+  #video::after { display: none; }
+
+  /* overlayMessage PRESS START — 비디오 안에 중앙 고정 */
+  #overlayMessage,
+  .overlay-message {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(-1deg) !important;
+    width: auto !important;
+    height: auto !important;
+    z-index: 6 !important;
+    pointer-events: none;
+    font-size: 36px !important;
+    letter-spacing: 0.2em !important;
+    color: var(--ink-1) !important;
+    text-shadow:
+      2px 2px 0 #000,
+      -1px -1px 0 #000,
+      0 0 30px rgba(239, 230, 211, 0.5) !important;
+  }
+  /* 실행 중엔 PRESS START 숨김 */
+  .running #overlayMessage,
+  .running .overlay-message {
+    display: none !important;
+  }
+
+  /* stage-bottom: 배경 투명하게 + z-index 띄움 */
+  .stage-bottom {
+    position: absolute !important;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 16px 14px !important;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(10, 9, 11, 0.35) 35%,
+      rgba(10, 9, 11, 0.88) 100%) !important;
+    z-index: 7 !important;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* video-container 상단에 ASCII 잔재 (╭◓─...╮) 완전 제거 */
+  .stage .video-container > *::before,
+  .stage .video-container > *::after {
+    /* 내부 요소의 ::before/::after 는 유지돼야 하지만 ASCII 텍스트 content 만 제거 */
+  }
+  /* 개별 known ASCII 요소 제거 (stage-bottom::before 등) */
+  .stage .video-container::after {
+    /* 이미 위에서 CRT 로 재정의 — 원본 ASCII content 는 내 rule 이 덮어씀 */
+  }
+  .stage-bottom::before,
+  .stage-bottom::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  /* PARAMETERS 카드 위쪽에 떠있는 "START" 잔재 — 기존 .btn-primary::before 등 사이드라벨 제거 */
+  .btn-primary::after,
+  button.btn-primary::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  /* under-grid 카드 사이 ASCII (✦ ◇ ╳━━━━╳ 𓆏) 제거 */
+  .under-grid > article + article::before,
+  .under-grid > article + article::after,
+  .under-grid > article::before,
+  .under-grid > article::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+    background-image: none !important;
+    animation: none !important;
+  }
+  /* 그리고 내가 만든 .card::before (크레파스 보더) 는 복구 */
+  .card::before,
+  .card-mode::before,
+  .card-score::before {
+    content: "" !important;
+    display: block !important;
+  }
+
+  /* header-row 상단 ASCII (≋ ≋ ≋ ◓ ╳━━╳) 제거 */
+  .site-header::before,
+  header.site-header::before,
+  .header-row::before {
+    content: none !important;
+    display: none !important;
+  }
 }
 
