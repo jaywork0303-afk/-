@@ -1239,18 +1239,20 @@ function unlockSpeechSynthesis() {
   }
 }
 
-// ── Web Speech API TTS: 기본음 대신 사물 이름을 읽는다 ──
+// ── Web Speech API TTS: 감지된 모든 사물 이름을 동시에 겹쳐서 읽는다 ──
+// Web Speech API 는 단일 큐라 기본적으로 utterance 가 직렬로 재생된다.
+// "겹쳐서" 들리도록 하려면 매번 cancel() 하고 새 utterance 를 즉시 speak 해
+// 이전 음성을 끊고 새로 시작 + 다른 utterance 들도 큐에 같이 쌓아 빠르게
+// 연속 발음시킨다. (브라우저 한계상 진짜 동시 재생은 불가)
 function speakClassName(cls, volume = 1.0) {
   if (!('speechSynthesis' in window)) return;
-  // 이미 말하는 중이면 큐에 쌓이지 않게 skip
-  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
   const u = new SpeechSynthesisUtterance(cls);
-  u.rate = 1.05;
+  u.rate = 1.25;
   u.pitch = 1.0;
   u.volume = Math.max(0.15, Math.min(1, volume));
-  // 영어 클래스 이름(COCO)이 대부분이므로 en-US 우선
   u.lang = /^[a-zA-Z\s_-]+$/.test(cls) ? 'en-US' : 'ko-KR';
   try {
+    // 큐에 쌓아둔 채로 그대로 추가 — 순차로 빠르게 모두 읽는다
     window.speechSynthesis.speak(u);
   } catch (e) {
     console.warn('TTS 실패:', e);
