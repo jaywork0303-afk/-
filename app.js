@@ -1593,21 +1593,22 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
-// ── 전체화면 토글 (CRT 필터/스캔라인/wobble 모두 유지) ──
+// ── CSS 기반 의사 전체화면 토글 ──
+// iOS Safari 는 div 에 requestFullscreen 이 안 통하고 video 엘리먼트만 지원하는데
+// 그러면 우리가 입힌 CRT 필터/오버레이가 사라진다. 그래서 native API 대신
+// body 에 클래스를 토글해서 videoContainer 를 viewport 가득 채우는 방식으로 처리.
 if (fullscreenBtn) {
-  fullscreenBtn.addEventListener('click', async () => {
-    const target = document.getElementById('videoContainer');
-    if (!target) return;
-    try {
-      if (!document.fullscreenElement) {
-        if (target.requestFullscreen) await target.requestFullscreen();
-        else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
-      } else {
-        if (document.exitFullscreen) await document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      }
-    } catch (e) {
-      console.warn('전체화면 실패:', e);
+  fullscreenBtn.addEventListener('click', () => {
+    const isFs = document.body.classList.toggle('pseudo-fullscreen');
+    fullscreenBtn.textContent = isFs ? '×' : '⛶';
+    fullscreenBtn.title = isFs ? '전체화면 종료' : '전체화면';
+    // 스크롤 잠금
+    document.documentElement.style.overflow = isFs ? 'hidden' : '';
+  });
+  // ESC 로도 닫기
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('pseudo-fullscreen')) {
+      fullscreenBtn.click();
     }
   });
 }
