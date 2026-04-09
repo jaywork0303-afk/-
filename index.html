@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Gaegu:wght@400;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=20260409-tts" />
+  <link rel="stylesheet" href="style.css?v=20260409-tts2" />
 </head>
 <body>
   <div class="ambient-grid" aria-hidden="true"></div>
@@ -182,20 +182,13 @@
             class="text-input"
             placeholder="TITLE · 제목 (선택)"
           />
-          <div class="class-picker">
-            <select id="classPicker">
-              <option value="">+ 대상 추가</option>
-            </select>
-            <div id="classChips" class="chips"></div>
-          </div>
-          <div class="add-actions">
-            <button id="addToneBtn" class="add-btn" type="button">
-              TONE · 기본음
-            </button>
-            <button id="addFileBtn" class="add-btn" type="button">
-              FILE · 파일
-            </button>
-            <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
+          <div class="picker-row">
+            <div class="class-picker">
+              <select id="classPicker">
+                <option value="">+ 사물 추가하기</option>
+              </select>
+              <div id="classChips" class="chips"></div>
+            </div>
             <details class="teach-section">
               <summary>STUDY · 직접 가르치기</summary>
               <div class="teach-form">
@@ -215,6 +208,15 @@
                 <ul id="taughtList" class="list taught-list"></ul>
               </div>
             </details>
+          </div>
+          <div class="add-actions">
+            <button id="addToneBtn" class="add-btn" type="button">
+              TONE · 기본음
+            </button>
+            <button id="addFileBtn" class="add-btn" type="button">
+              FILE · 파일
+            </button>
+            <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
           </div>
         </div>
 

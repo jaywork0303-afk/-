@@ -1210,6 +1210,35 @@ function playSounds(predictions) {
   }
 }
 
+// 모바일에서 speechSynthesis 를 사용자 제스처 안에서 "깨우기" 위한 helper.
+// iOS Safari 는 첫 speak() 가 사용자 제스처 안에서 호출되지 않으면 이후 호출도
+// 소리가 나오지 않는다. 또 일부 안드로이드 Chrome 은 getVoices() 가 비동기라
+// voiceschanged 이벤트를 기다려야 한다.
+let __speechUnlocked = false;
+function unlockSpeechSynthesis() {
+  if (__speechUnlocked) return;
+  if (!('speechSynthesis' in window)) return;
+  try {
+    // 일부 브라우저는 resume() 도 필요
+    window.speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0.01;
+    u.rate = 1;
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+    // 음성 리스트 비동기 로딩 트리거
+    window.speechSynthesis.getVoices();
+    if (typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+    __speechUnlocked = true;
+  } catch (e) {
+    console.warn('TTS unlock 실패:', e);
+  }
+}
+
 // ── Web Speech API TTS: 기본음 대신 사물 이름을 읽는다 ──
 function speakClassName(cls, volume = 1.0) {
   if (!('speechSynthesis' in window)) return;
@@ -1512,6 +1541,9 @@ startBtn.addEventListener('click', async () => {
   try {
     // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
     ensureAudioContext();
+    // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
+    // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
+    unlockSpeechSynthesis();
 
     // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
     if (Object.keys(pendingSoundBuffers).length > 0) {

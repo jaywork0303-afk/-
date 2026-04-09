@@ -3396,12 +3396,43 @@ footer {
     background: none !important;
   }
 
-  /* ── STUDY 버튼을 사물 추가 버튼 옆으로 가로 배치 ── */
+  /* ── classPicker + STUDY 버튼 같은 가로선 ── */
+  .picker-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+    padding: 0 14px !important;
+    margin-bottom: 8px;
+  }
+  .picker-row .class-picker {
+    flex: 1 1 180px !important;
+    min-width: 140px !important;
+    padding: 0 !important;
+  }
+  .picker-row .class-picker select {
+    width: 100% !important;
+  }
+  .picker-row > details.teach-section {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    align-self: center !important;
+  }
+  .picker-row > details.teach-section[open] {
+    flex-basis: 100% !important;
+    margin-top: 6px !important;
+    padding: 10px 12px !important;
+    border-left: 2px dashed var(--ink-4) !important;
+  }
+
   .add-actions {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
     align-items: center !important;
+    padding: 0 14px !important;
   }
   .add-actions .teach-section {
     margin: 0 !important;
@@ -3409,6 +3440,7 @@ footer {
     padding: 0 !important;
     flex-basis: auto !important;
   }
+  .picker-row details.teach-section > summary,
   .add-actions details.teach-section > summary {
     list-style: none;
     display: inline-block;
