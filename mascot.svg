@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none" stroke="#f4ecd8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
   <!-- ==== Crossed diagonal bones with diamond endpoints ==== -->
   <!-- Left bone -->
   <path d="M250 360 L110 470"/>
@@ -8,12 +8,12 @@
   <!-- Left diamond endpoint -->
   <path d="M110 470 L60 440 L30 470 L60 500 Z"/>
   <!-- Inner diamond spark (left) -->
-  <path d="M85 470 L70 460 L60 470 L70 480 Z" fill="currentColor" stroke="none"/>
+  <path d="M85 470 L70 460 L60 470 L70 480 Z" fill="#f4ecd8" stroke="none"/>
 
   <!-- Right diamond endpoint -->
   <path d="M490 470 L540 440 L570 470 L540 500 Z"/>
   <!-- Inner diamond spark (right) -->
-  <path d="M515 470 L530 460 L540 470 L530 480 Z" fill="currentColor" stroke="none"/>
+  <path d="M515 470 L530 460 L540 470 L530 480 Z" fill="#f4ecd8" stroke="none"/>
 
   <!-- ==== Central body: heart / skull fused shape ==== -->
   <path d="M300 200
