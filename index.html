@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SEOJEONG WORLD / 서정월드</title>
+  <title>SEOJEONG · 서정월드</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -13,174 +13,103 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- SVG 필터 + 재사용 geometric symbol 들 -->
-  <svg class="svg-defs" aria-hidden="true">
-    <defs>
-      <filter id="crayon-rough" x="-5%" y="-5%" width="110%" height="110%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="7" />
-        <feDisplacementMap in="SourceGraphic" scale="2" />
-      </filter>
-      <filter id="crayon-rough-strong" x="-8%" y="-8%" width="116%" height="116%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="3" seed="3" />
-        <feDisplacementMap in="SourceGraphic" scale="3.5" />
-      </filter>
-
-      <!-- 기하학 primitives -->
-      <symbol id="geo-circle" viewBox="0 0 60 60">
-        <circle cx="30" cy="30" r="26" stroke="currentColor" stroke-width="3" fill="none" />
-      </symbol>
-      <symbol id="geo-circle-filled" viewBox="0 0 60 60">
-        <circle cx="30" cy="30" r="26" fill="currentColor" />
-      </symbol>
-      <symbol id="geo-halfmoon" viewBox="0 0 60 60">
-        <path d="M30,4 a26,26 0 0,1 0,52 z" fill="currentColor" />
-      </symbol>
-      <symbol id="geo-triangle" viewBox="0 0 60 60">
-        <path d="M30,6 L54,52 L6,52 Z" stroke="currentColor" stroke-width="3" fill="none" stroke-linejoin="round" />
-      </symbol>
-      <symbol id="geo-square" viewBox="0 0 60 60">
-        <rect x="8" y="8" width="44" height="44" stroke="currentColor" stroke-width="3" fill="none" />
-      </symbol>
-      <symbol id="geo-bars" viewBox="0 0 60 60">
-        <g stroke="currentColor" stroke-width="6" stroke-linecap="round">
-          <line x1="10" y1="12" x2="50" y2="12" />
-          <line x1="10" y1="30" x2="40" y2="30" />
-          <line x1="10" y1="48" x2="50" y2="48" />
-        </g>
-      </symbol>
-      <symbol id="geo-dots" viewBox="0 0 60 60">
-        <g fill="currentColor">
-          <circle cx="10" cy="10" r="3" />
-          <circle cx="30" cy="10" r="3" />
-          <circle cx="50" cy="10" r="3" />
-          <circle cx="10" cy="30" r="3" />
-          <circle cx="30" cy="30" r="3" />
-          <circle cx="50" cy="30" r="3" />
-          <circle cx="10" cy="50" r="3" />
-          <circle cx="30" cy="50" r="3" />
-          <circle cx="50" cy="50" r="3" />
-        </g>
-      </symbol>
-      <symbol id="geo-squiggle" viewBox="0 0 100 20">
-        <path
-          d="M4,10 Q16,-2 28,10 T52,10 T76,10 T96,10"
-          stroke="currentColor"
-          stroke-width="4"
-          fill="none"
-          stroke-linecap="round"
-        />
-      </symbol>
-      <symbol id="geo-arrow" viewBox="0 0 80 40">
-        <path d="M4,20 L68,20" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-        <path d="M56,6 L72,20 L56,34" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      </symbol>
-      <symbol id="geo-cross" viewBox="0 0 50 50">
-        <g stroke="currentColor" stroke-width="5" stroke-linecap="round">
-          <line x1="10" y1="25" x2="40" y2="25" />
-          <line x1="25" y1="10" x2="25" y2="40" />
-        </g>
-      </symbol>
-      <symbol id="geo-eye" viewBox="0 0 80 50">
-        <path d="M6,25 Q40,3 74,25 Q40,47 6,25 Z" stroke="currentColor" stroke-width="3" fill="none" />
-        <circle cx="40" cy="25" r="7" fill="currentColor" />
-      </symbol>
-    </defs>
-  </svg>
-
-  <!-- 배경 장식: 기하학 shape 들을 정적에 가깝게 배치 -->
-  <div class="bg-decor" aria-hidden="true">
-    <svg class="geo geo-1" style="color: var(--pink-hot)"><use href="#geo-circle-filled" /></svg>
-    <svg class="geo geo-2" style="color: var(--mint-ink)"><use href="#geo-halfmoon" /></svg>
-    <svg class="geo geo-3" style="color: var(--lemon-ink)"><use href="#geo-triangle" /></svg>
-    <svg class="geo geo-4" style="color: var(--lavender-ink)"><use href="#geo-square" /></svg>
-    <svg class="geo geo-5" style="color: var(--pink)"><use href="#geo-dots" /></svg>
-    <svg class="geo geo-6" style="color: var(--peach-ink)"><use href="#geo-squiggle" /></svg>
-    <svg class="geo geo-7" style="color: var(--ink)"><use href="#geo-bars" /></svg>
-    <svg class="geo geo-8" style="color: var(--mint-ink)"><use href="#geo-circle" /></svg>
-    <svg class="geo geo-9" style="color: var(--pink-hot)"><use href="#geo-cross" /></svg>
-    <svg class="geo geo-10" style="color: var(--lavender-ink)"><use href="#geo-eye" /></svg>
-    <span class="bg-label bg-label-1">NO.404 — UNTITLED</span>
-    <span class="bg-label bg-label-2">a study in perception</span>
-    <span class="bg-label bg-label-3">OBJET / ODE</span>
-  </div>
+  <div class="ambient-grid" aria-hidden="true"></div>
+  <div class="ambient-glow" aria-hidden="true"></div>
 
   <header class="site-header">
-    <div class="header-topline">
-      <span class="meta">INDEX · 2026 · SEOUL</span>
-      <span class="meta meta-right">EST. 서정 · ∞</span>
+    <div class="header-row">
+      <div class="brand">
+        <span class="brand-mark">◉</span>
+        <span class="brand-name">SEOJEONG <em>서정월드</em></span>
+      </div>
+      <nav class="header-meta">
+        <span>INDEX / 001</span>
+        <span class="sep">·</span>
+        <span>PERCEPTUAL SCORE</span>
+        <span class="sep">·</span>
+        <span id="timeNow">00:00:00</span>
+      </nav>
     </div>
-    <h1 class="title">
-      <span class="title-serif">Seojeong</span>
-      <span class="title-hand">월드</span>
-    </h1>
-    <div class="title-annotation">
-      <span class="edition">Edition 001 / ∞</span>
-      <svg class="annotation-line" viewBox="0 0 300 10" preserveAspectRatio="none">
-        <path d="M2,5 L298,5" stroke="currentColor" stroke-width="2" />
-      </svg>
-    </div>
-    <p class="subtitle">
-      <span class="subtitle-kr">
-        카메라가 본 것은 소리가 된다.<br />
-        사물은 저마다의 음을 가진다.
-      </span>
-      <span class="subtitle-en">
-        The camera sees. The object sounds.<br />
-        A composition for things that remain.
-      </span>
-    </p>
+    <div class="header-line"></div>
   </header>
 
   <main>
-    <section class="video-container unflip" id="videoContainer">
-      <div class="vc-label">FIGURE 001 — LIVE CAPTURE</div>
-      <video id="video" autoplay muted playsinline></video>
-      <canvas id="overlay"></canvas>
-      <button
-        id="camSwitchBtn"
-        class="cam-switch-btn"
-        title="전면 / 후면 카메라 전환"
-        aria-label="카메라 전환"
-      >
-        ⇄
-      </button>
-      <div id="overlayMessage" class="overlay-message">
-        <span class="om-mark">▯</span>
-        시작 —
+    <section class="stage">
+      <div class="video-container unflip" id="videoContainer">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+
+        <!-- HUD layers -->
+        <div class="hud hud-grid" aria-hidden="true"></div>
+        <div class="hud hud-corners" aria-hidden="true">
+          <span class="hud-corner tl"></span>
+          <span class="hud-corner tr"></span>
+          <span class="hud-corner bl"></span>
+          <span class="hud-corner br"></span>
+        </div>
+        <div class="hud hud-crosshair" aria-hidden="true">
+          <span class="cross-h"></span>
+          <span class="cross-v"></span>
+          <span class="cross-dot"></span>
+        </div>
+        <div class="hud hud-top" aria-hidden="true">
+          <div class="hud-left">
+            <span class="rec-dot"></span>
+            <span>REC</span>
+            <span class="hud-sep">│</span>
+            <span>FIGURE 001 / LIVE CAPTURE</span>
+          </div>
+          <div class="hud-right">
+            <span class="hud-coord">0,0 — ∞,∞</span>
+          </div>
+        </div>
+        <div class="hud hud-scale-left" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="hud hud-scale-bottom" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
+        </div>
+
+        <!-- Bottom controls inside stage -->
+        <div class="stage-bottom">
+          <div id="status" class="stage-status">STANDBY</div>
+          <button id="startBtn" class="btn-primary">
+            <span class="btn-sub">00</span>
+            <span class="btn-label">START</span>
+          </button>
+          <button
+            id="camSwitchBtn"
+            class="icon-btn"
+            title="전면 / 후면 카메라 전환"
+            aria-label="카메라 전환"
+          >⇄</button>
+        </div>
+
+        <div id="overlayMessage" class="overlay-message">PRESS START</div>
       </div>
-    </section>
 
-    <aside class="controls">
-      <button id="startBtn" class="primary">
-        <span class="btn-num">00</span>
-        <span class="btn-label">START</span>
-      </button>
+      <!-- Floating panel: OBSERVATION (left) -->
+      <aside class="float-panel panel-observation">
+        <header class="panel-head">
+          <span class="panel-num">03</span>
+          <span class="panel-title">OBSERVATION</span>
+          <span class="panel-sep">/</span>
+          <span class="panel-sub">감지</span>
+        </header>
+        <ul id="detectionList" class="list"></ul>
+      </aside>
 
-      <div id="status" class="status">
-        <span class="status-dot"></span>
-        STANDBY
-      </div>
-
-      <fieldset>
-        <legend><span class="num">01</span>MODE / 재생</legend>
-        <label class="check">
-          <input type="checkbox" id="multiMode" checked />
-          <span>다중 사물 동시 재생</span>
-        </label>
-        <p class="hint">꺼두면 한 번에 하나의 음만 들린다.</p>
-        <label class="check" style="margin-top: 10px;">
-          <input type="checkbox" id="distanceMode" />
-          <span>사람 기준 거리 볼륨</span>
-        </label>
-        <p class="hint">거리는 크기를 결정한다.</p>
-        <label>
-          FALLOFF <span class="val" id="falloffValue">2.0</span>
-          <input type="range" id="falloffSlider" min="0.5" max="5" step="0.1" value="2.0" />
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend><span class="num">02</span>PARAMETERS / 설정</legend>
+      <!-- Floating panel: PARAMETERS (right) -->
+      <aside class="float-panel panel-parameters">
+        <header class="panel-head">
+          <span class="panel-num">02</span>
+          <span class="panel-title">PARAMETERS</span>
+          <span class="panel-sep">/</span>
+          <span class="panel-sub">설정</span>
+        </header>
         <label>
           THRESHOLD <span class="val" id="confValue">0.50</span>
           <input type="range" id="confSlider" min="0.1" max="0.95" step="0.05" value="0.5" />
@@ -190,21 +119,46 @@
           <input type="range" id="cdSlider" min="0" max="5" step="0.1" value="1.5" />
         </label>
         <label>
-          INFER · ms <span class="val" id="intervalValue">120</span>
+          INFER · MS <span class="val" id="intervalValue">120</span>
           <input type="range" id="intervalSlider" min="50" max="500" step="10" value="120" />
         </label>
-        <p class="hint">값이 커질수록 프레임은 느리고 고요해진다.</p>
-      </fieldset>
+      </aside>
+    </section>
 
-      <fieldset>
-        <legend><span class="num">03</span>OBSERVATION / 감지</legend>
-        <ul id="detectionList" class="list"></ul>
-      </fieldset>
+    <!-- Under-grid: MODE + SCORE cards -->
+    <section class="under-grid">
+      <article class="card card-mode">
+        <header class="panel-head">
+          <span class="panel-num">01</span>
+          <span class="panel-title">MODE</span>
+          <span class="panel-sep">/</span>
+          <span class="panel-sub">재생</span>
+        </header>
+        <label class="check">
+          <input type="checkbox" id="multiMode" checked />
+          <span>MULTI / 다중 사물 동시 재생</span>
+        </label>
+        <p class="hint">꺼두면 한 번에 하나의 음만 들린다.</p>
+        <label class="check">
+          <input type="checkbox" id="distanceMode" />
+          <span>PROXIMITY / 사람 기준 거리 볼륨</span>
+        </label>
+        <p class="hint">거리는 크기를 결정한다.</p>
+        <label>
+          FALLOFF <span class="val" id="falloffValue">2.0</span>
+          <input type="range" id="falloffSlider" min="0.5" max="5" step="0.1" value="2.0" />
+        </label>
+      </article>
 
-      <fieldset class="mapping-fieldset">
-        <legend><span class="num">04</span>SCORE / 악보</legend>
+      <article class="card card-score">
+        <header class="panel-head">
+          <span class="panel-num">04</span>
+          <span class="panel-title">SCORE</span>
+          <span class="panel-sep">/</span>
+          <span class="panel-sub">악보</span>
+        </header>
         <p class="hint">
-          사물에 음을 붙인다. 하나 또는 여럿이 하나의 소리를 공유할 수 있다.
+          사물에 음을 할당한다. 하나의 음은 여러 대상을 공유할 수 있다.
         </p>
 
         <div class="add-form">
@@ -212,22 +166,20 @@
             type="text"
             id="mapName"
             class="text-input"
-            placeholder="TITLE — 제목 (선택)"
+            placeholder="TITLE · 제목 (선택)"
           />
-
           <div class="class-picker">
             <select id="classPicker">
               <option value="">+ 대상 추가</option>
             </select>
             <div id="classChips" class="chips"></div>
           </div>
-
           <div class="add-actions">
-            <button id="addToneBtn" class="add-btn tone-btn" type="button">
-              TONE · 기본음 추가
+            <button id="addToneBtn" class="add-btn" type="button">
+              TONE · 기본음
             </button>
-            <button id="addFileBtn" class="add-btn file-btn-2" type="button">
-              FILE · 파일 업로드
+            <button id="addFileBtn" class="add-btn" type="button">
+              FILE · 파일
             </button>
             <input type="file" id="mapFileInput" accept="audio/*,video/*" hidden />
           </div>
@@ -237,16 +189,15 @@
           <summary>STUDY · 직접 가르치기</summary>
           <div class="teach-form">
             <p class="hint">
-              COCO 에 없는 사물을 카메라가 기억하게 한다.
-              시작 후, 대상을 중심에 놓고 3초.
+              COCO 에 없는 대상을 카메라가 기억한다. 시작 후, 대상을 중심에 3초.
             </p>
             <input
               type="text"
               id="teachName"
               class="text-input"
-              placeholder="SUBJECT — 이름"
+              placeholder="SUBJECT · 이름"
             />
-            <button id="teachBtn" class="add-btn tone-btn" type="button">
+            <button id="teachBtn" class="add-btn" type="button">
               LEARN · 3s 학습
             </button>
             <div id="teachStatus" class="teach-status"></div>
@@ -257,23 +208,25 @@
         <div class="mapping-divider">— INDEX OF WORKS —</div>
 
         <ul id="soundList" class="list mapping-list">
-          <li class="empty-hint">
-            아직 비어 있다.
-          </li>
+          <li class="empty-hint">아직 비어 있다.</li>
         </ul>
-      </fieldset>
-    </aside>
+      </article>
+    </section>
   </main>
 
   <footer>
-    <div class="footer-line">
-      <span>SEOJEONG WORLD · A PERCEPTUAL SCORE</span>
-      <span class="footer-dot">●</span>
-      <span>TENSORFLOW · COCO-SSD · WEB AUDIO</span>
+    <div class="footer-top-line"></div>
+    <div class="footer-content">
+      <div class="footer-left">
+        <span>SEOJEONG / 서정월드</span>
+        <span class="sep">—</span>
+        <span>A PERCEPTUAL SCORE</span>
+      </div>
+      <div class="footer-right">
+        <span>TF · COCO-SSD · KNN · WEB AUDIO</span>
+      </div>
     </div>
-    <div class="footer-sub">
-      objects observed become objects heard — ∞
-    </div>
+    <div class="footer-sub">objects observed become objects heard — ∞</div>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
@@ -281,5 +234,19 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   <script src="app.js"></script>
+  <script>
+    (function () {
+      const el = document.getElementById('timeNow');
+      if (!el) return;
+      const pad = (n) => String(n).padStart(2, '0');
+      function tick() {
+        const d = new Date();
+        el.textContent =
+          pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
 </body>
 </html>
