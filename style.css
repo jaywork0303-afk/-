@@ -4207,3 +4207,187 @@ body.pseudo-fullscreen .card-mode::after,
 body.pseudo-fullscreen .card-score::after {
   display: none !important;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   ░ FLAT CRAYON — 그라데이션 전부 제거, 단색 + 크레파스 질감
+   ═══════════════════════════════════════════════════════════════ */
+
+/* body 의 라디얼 그라디언트 제거, 단색 그레이 + 종이 그레인만 */
+html, body {
+  background: var(--vg-2) !important;
+  background-image: none !important;
+}
+body::before {
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='3' seed='5' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.83  0 0 0 0 0.55  0 0 0 0 0.6  0 0 0 0.10 0'/></filter><rect width='100%25' height='100%25' filter='url(%23p)'/></svg>") !important;
+  mix-blend-mode: screen !important;
+  opacity: 0.55 !important;
+}
+body::after { display: none !important; }
+
+/* ── 패널/카드: 단색 배경, 그라디언트 전부 제거 ── */
+.float-panel,
+.card,
+.panel-observation,
+.card-mode {
+  background: #3a2530 !important;          /* 핑크 우세 단색 */
+  background-image: none !important;
+  border: 2px solid var(--vp-4) !important;
+  box-shadow: 3px 4px 0 var(--vg-1) !important;
+  backdrop-filter: none !important;
+}
+.panel-parameters,
+.card-score {
+  background: #2d2a2c !important;          /* 그레이 우세 단색 */
+  background-image: none !important;
+  border: 2px solid var(--vg-4) !important;
+  box-shadow: 3px 4px 0 var(--vg-1) !important;
+}
+
+/* 패널/카드에 크레파스 질감 오버레이 (균일한 노이즈) */
+.float-panel::before,
+.card::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='c'><feTurbulence type='fractalNoise' baseFrequency='2.2' numOctaves='2' seed='9' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23c)'/></svg>") !important;
+  mix-blend-mode: overlay !important;
+  opacity: 0.9 !important;
+}
+.panel-observation,
+.panel-parameters,
+.card-mode,
+.card-score {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* 컨텐츠는 노이즈 위에 */
+.float-panel > *,
+.card > * {
+  position: relative;
+  z-index: 2;
+}
+/* 마스코트 워터마크는 노이즈와 컨텐츠 사이 */
+.panel-observation::after,
+.panel-parameters::after,
+.card-mode::after,
+.card-score::after {
+  z-index: 1 !important;
+}
+
+/* ── 비디오 컨테이너도 단색 검정 ── */
+.video-container,
+#videoContainer {
+  background: #0d0c0d !important;
+  background-image: none !important;
+}
+
+/* CRT ::after 의 vignette 라디얼 그라디언트 제거, 단색 + 노이즈 + 스캔라인만 */
+#videoContainer::after,
+.video-container::after {
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.42) 0 1px,
+      transparent 1px 3px),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='2.6' numOctaves='3' seed='19' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.94  0 0 0 0 0.78  0 0 0 0 0.81  0 0 0 0.30 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>") !important;
+  mix-blend-mode: screen !important;
+}
+
+/* stage-bottom 의 그라디언트도 단색으로 */
+.stage-bottom {
+  background: rgba(13, 12, 13, 0.78) !important;
+  background-image: none !important;
+}
+body.pseudo-fullscreen #videoContainer .stage-bottom {
+  background: rgba(13, 12, 13, 0.85) !important;
+  background-image: none !important;
+}
+
+/* ── 헤더 라인: 단색 1px 잉크 라인으로 단순화 ── */
+.header-line {
+  background: var(--vp-4) !important;
+  background-image: none !important;
+  height: 2px !important;
+  opacity: 0.7 !important;
+}
+.footer-top-line {
+  background: var(--vp-3) !important;
+  background-image: none !important;
+  height: 1.5px !important;
+}
+
+/* ── 슬라이더 트랙: 단색 + 노이즈 (그라디언트 제거) ── */
+input[type="range"] {
+  background: var(--vg-3) !important;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='10'><filter id='t'><feTurbulence type='fractalNoise' baseFrequency='3' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.18 0'/></filter><rect width='100%25' height='100%25' filter='url(%23t)'/></svg>') !important;
+  background-size: 100% 100% !important;
+  background-blend-mode: overlay !important;
+  height: 6px !important;
+  border-radius: 0 !important;
+}
+
+/* ── 버튼 단색화 ── */
+.btn-primary {
+  background: #1a1819 !important;
+  background-image: none !important;
+}
+
+/* 칩/리스트 항목 — 그라디언트 없는 단색 */
+.chip,
+.chips .chip {
+  background: #3a2530 !important;
+  background-image: none !important;
+}
+#detectionList li,
+#soundList li {
+  background: #2d2a2c !important;
+  background-image: none !important;
+}
+#detectionList li:nth-child(2n),
+#soundList li:nth-child(2n) {
+  background: #38242c !important;
+  background-image: none !important;
+}
+
+/* ── 마스코트 워터마크: 작은 노이즈 더하기 ── */
+.panel-observation::after,
+.panel-parameters::after,
+.card-mode::after,
+.card-score::after {
+  /* 그라디언트는 아니지만 filter 만 사용 — 그대로 둠 */
+}
+
+/* ── HUD ambient-glow / static-flash 도 완전히 죽임 (혹시 그라디언트 있으면) ── */
+.ambient-glow,
+.static-flash {
+  background: none !important;
+  background-image: none !important;
+  display: none !important;
+}
+.ambient-grid {
+  background-image: none !important;
+  display: none !important;
+}
+
+/* 전체적으로 backdrop-filter blur 도 제거 (단색 질감 강조) */
+.float-panel,
+.card,
+.panel-observation,
+.panel-parameters,
+.card-mode,
+.card-score,
+.icon-btn {
+  backdrop-filter: none !important;
+}
