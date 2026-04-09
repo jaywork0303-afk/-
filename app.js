@@ -1074,42 +1074,43 @@ function playBufferEntry(entry, multiplier) {
 // HTMLMediaElement entry 재생 (비디오/폴백 포맷)
 // 엔트리당 단일 엘리먼트 재사용 → iOS 모바일 동시 미디어 제한 회피
 function playElementEntry(entry, multiplier) {
-  const el = entry.mediaElement;
-  if (!el) return 0;
+  const src = entry.mediaElement;
+  if (!src) return 0;
   const volume = entry.volume ?? 1.0;
   const rate = entry.rate ?? 1.0;
 
+  // 진짜 동시 재생: 매번 clone 해서 재생 → 같은 파일이 겹쳐 들린다
+  // (원본 src 는 메타데이터/디코딩 캐시 역할만)
+  const el = src.cloneNode(true);
   el.volume = Math.max(0, Math.min(1, volume * multiplier));
   el.playbackRate = rate;
-  try {
-    el.currentTime = 0;
-  } catch (_) {}
+  el.currentTime = 0;
 
   activeElements.add(el);
   el.onended = () => {
-    if ((playingUntil[entry.id] ?? 0) <= performance.now() / 1000 + 0.05) {
-      delete playingUntil[entry.id];
-    }
+    activeElements.delete(el);
+    el.src = '';
   };
 
   const p = el.play();
   if (p && typeof p.catch === 'function') {
     p.catch((e) => {
       console.error('element 재생 실패', e);
-      delete playingUntil[entry.id];
+      activeElements.delete(el);
     });
   }
 
   const realDuration =
-    Number.isFinite(el.duration) && el.duration > 0 ? el.duration : entry.duration;
+    Number.isFinite(src.duration) && src.duration > 0 ? src.duration : entry.duration;
   return (realDuration > 0 ? realDuration : 1) / rate;
 }
 
-// 통합 재생 디스패처: 이미 재생 중이면 스킵 + 재생 후 playingUntil 갱신
+// 통합 재생 디스패처
+// 같은 entry 라도 buffer/tone/element 모두 진짜 동시 재생되도록
+// playingUntil 차단을 제거 (Web Audio / clone 으로 자연스럽게 겹친다)
 function playEntry(entry, multiplier = 1.0) {
   if (!entry) return;
   const nowSec = performance.now() / 1000;
-  if (nowSec < (playingUntil[entry.id] ?? 0)) return;
 
   let duration = 0;
   if (entry.kind === 'tone') duration = playToneEntry(entry, multiplier);
@@ -1228,31 +1229,50 @@ async function ensureMeSpeak() {
   if (__meSpeakReady) return true;
   if (typeof meSpeak === 'undefined') return false;
   try {
-    await new Promise((res) => meSpeak.loadConfig('vendor/mespeak/mespeak_config.json', res));
-    await new Promise((res) => meSpeak.loadVoice('vendor/mespeak/en.json', res));
+    // meSpeak v2: loadConfig 는 빈 함수, isConfigLoaded 는 항상 true.
+    // loadVoice(url, callback) 의 callback 시그니처: (success, msgOrName)
+    await new Promise((resolve, reject) => {
+      meSpeak.loadVoice('en/en', (success, msg) => {
+        if (success) resolve(msg);
+        else reject(new Error('voice load failed: ' + msg));
+      });
+    });
     __meSpeakReady = true;
+    console.log('[meSpeak] 준비 완료 — 진짜 병렬 TTS 활성화');
     return true;
   } catch (e) {
     console.warn('meSpeak 초기화 실패:', e);
     return false;
   }
 }
+// 페이지 로드 즉시 meSpeak 초기화 (START 안 눌러도 매핑 없는 클래스 TTS 가능)
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => ensureMeSpeak());
+  } else {
+    ensureMeSpeak();
+  }
+}
 
 // 클래스 이름을 PCM buffer 로 합성해서 캐시에 저장
+// meSpeak v2: speak(text, {rawdata:'array'}, callback) — callback(success, id, data)
 async function getOrSynthBuffer(cls) {
   if (__ttsBufferCache.has(cls)) return __ttsBufferCache.get(cls);
   if (!__meSpeakReady) {
     const ok = await ensureMeSpeak();
     if (!ok) return null;
   }
-  // meSpeak.speak 는 rawdata 옵션으로 wav 의 Uint8Array 를 반환
-  const wav = meSpeak.speak(cls, {
-    rawdata: 'array',
-    speed: 175,
-    pitch: 50,
-    amplitude: 100,
+  const wav = await new Promise((resolve) => {
+    meSpeak.speak(cls, {
+      rawdata: 'array',
+      speed: 175,
+      pitch: 50,
+      amplitude: 100,
+    }, (success, id, data) => {
+      resolve(success ? data : null);
+    });
   });
-  if (!wav) return null;
+  if (!wav || !wav.length) return null;
   const u8 = wav instanceof Uint8Array ? wav : new Uint8Array(wav);
   const ctx = ensureAudioContext();
   try {
