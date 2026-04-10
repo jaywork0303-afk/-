@@ -1,3 +1,47 @@
+// ══════════════════════════════════════════════════════════════
+// 결제 확인 팝업 (paywall) — 24시간 카운트다운
+// ══════════════════════════════════════════════════════════════
+(function initPaywall() {
+  const PAYWALL_KEY = '__paywall_start__';
+  const TOTAL_SEC = 24 * 60 * 60; // 24시간
+
+  // 최초 방문 시 타이머 시작 시각 기록
+  if (!localStorage.getItem(PAYWALL_KEY)) {
+    localStorage.setItem(PAYWALL_KEY, Date.now().toString());
+  }
+
+  const overlay = document.getElementById('paywall-overlay');
+  const timerEl = document.getElementById('paywall-timer');
+  const barEl = document.getElementById('paywall-bar');
+  if (!overlay) return;
+
+  function tick() {
+    const started = parseInt(localStorage.getItem(PAYWALL_KEY), 10);
+    const elapsed = Math.floor((Date.now() - started) / 1000);
+    const remain = Math.max(0, TOTAL_SEC - elapsed);
+
+    const h = String(Math.floor(remain / 3600)).padStart(2, '0');
+    const m = String(Math.floor((remain % 3600) / 60)).padStart(2, '0');
+    const s = String(remain % 60).padStart(2, '0');
+    timerEl.textContent = `${h}:${m}:${s}`;
+    barEl.style.width = `${(remain / TOTAL_SEC) * 100}%`;
+
+    if (remain <= 0) {
+      timerEl.textContent = '00:00:00';
+      timerEl.style.color = '#fff';
+      timerEl.style.textShadow = 'none';
+      overlay.querySelector('.paywall-warn').textContent = '⏰ 시간이 만료되었습니다.';
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+
+  // 모든 클릭/터치를 차단 (팝업 뒤의 기능 사용 불가)
+  overlay.addEventListener('click', (e) => e.stopPropagation());
+  overlay.addEventListener('touchstart', (e) => e.stopPropagation());
+})();
+
 // 사물 인식 사운드 플레이어 (브라우저 버전 / 서정월드)
 // - TensorFlow.js + COCO-SSD 로 카메라 영상에서 사물 감지
 // - 사용자가 만든 매핑 entries 만 트리거 (기본 톤 자동 매핑 없음)

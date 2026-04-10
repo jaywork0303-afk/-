@@ -1379,3 +1379,114 @@ body.pseudo-fullscreen .cam-switch-btn:not(.fullscreen-btn) {
 body.pseudo-fullscreen .mascot-floaty {
   display: none !important;
 }
+
+/* ============================================================
+   결제 요청 팝업 (paywall)
+   ============================================================ */
+#paywall-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#paywall-overlay.hidden {
+  display: none;
+}
+#paywall-card {
+  background: linear-gradient(145deg, #1a1a2e, #16213e);
+  border: 3px solid #e94560;
+  border-radius: 20px;
+  padding: 40px 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow:
+    0 0 40px rgba(233, 69, 96, 0.4),
+    0 0 80px rgba(233, 69, 96, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  animation: paywall-shake 0.6s ease-in-out;
+}
+.paywall-bomb {
+  font-size: 4rem;
+  animation: paywall-pulse 1s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+.paywall-title {
+  color: #e94560;
+  font-family: 'Gaegu', cursive;
+  font-size: 1.8rem;
+  margin: 0 0 20px;
+  text-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+}
+.paywall-info {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.paywall-account {
+  font-family: 'Courier New', monospace;
+  font-size: 1.6rem;
+  color: #fff;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin: 0 0 4px;
+}
+.paywall-bank {
+  color: #a0a0b0;
+  font-size: 1rem;
+  margin: 0;
+}
+.paywall-msg {
+  color: #ffd700;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 12px 0 8px;
+}
+.paywall-warn {
+  color: #e94560;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+.paywall-timer {
+  font-family: 'Courier New', monospace;
+  font-size: 3rem;
+  font-weight: bold;
+  color: #ff4444;
+  text-shadow: 0 0 15px rgba(255, 68, 68, 0.6);
+  margin-bottom: 16px;
+  animation: paywall-timer-blink 1s step-end infinite;
+}
+.paywall-bar-wrap {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+.paywall-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #e94560, #ff4444, #ffd700);
+  border-radius: 8px;
+  width: 100%;
+  transition: width 1s linear;
+}
+
+@keyframes paywall-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.15); }
+}
+@keyframes paywall-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
+  20%, 40%, 60%, 80% { transform: translateX(6px); }
+}
+@keyframes paywall-timer-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
