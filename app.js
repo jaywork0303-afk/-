@@ -145,7 +145,7 @@ const customClasses = {};
 let mobilenetModel = null;  // feature extractor (~4MB)
 let knnModel = null;        // KNN classifier
 let mobilenetLoading = null; // 중복 로드 방지용 Promise
-const CUSTOM_CONF_THRESHOLD = 0.8;
+const CUSTOM_CONF_THRESHOLD = 0.55;
 const BG_CLASS = '__bg__'; // KNN 배경 클래스 (자동 학습, UI 에 노출 안 됨)
 
 // ---- MediaPipe Interactive Segmenter ----
@@ -1437,6 +1437,7 @@ function playEntry(entry, multiplier = 1.0) {
 // ── 커스텀 사물 루프 재생/정지 ──
 function startCustomLoop(entry, multiplier) {
   if (!entry || customLoopSources.has(entry.id)) return;
+  ensureAudioContext();
   const vol = (entry.volume ?? 1.0) * multiplier;
 
   if (entry.kind === 'buffer' && audioContext && entry.buffer) {
@@ -1592,7 +1593,8 @@ function playSounds(predictions) {
 
   // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 읽어준다 ──
   for (const [cls, vol] of classVol) {
-    if (detectedCustom.has(cls)) continue; // 커스텀은 루프로 처리
+    // 커스텀 사물 중 매핑된 사운드가 있으면 루프로 처리 (TTS 불필요)
+    if (detectedCustom.has(cls) && findEntriesForClass(cls).length > 0) continue;
     if (findEntriesForClass(cls).length > 0) continue;
     const ttsId = `__tts__${cls}`;
     if (now - (lastPlayed[ttsId] || 0) < cd) continue;
@@ -1950,15 +1952,15 @@ function triggerInference() {
 
             const bgConf = gateResult.confidences[BG_CLASS] || 0;
             const labelConf = gateResult.confidences[gateResult.label] || 0;
-            if (gateResult.label !== BG_CLASS && labelConf >= CUSTOM_CONF_THRESHOLD && labelConf > bgConf * 2) {
+            if (gateResult.label !== BG_CLASS && labelConf >= CUSTOM_CONF_THRESHOLD && labelConf > bgConf * 1.3) {
               if (!votes[gateResult.label]) votes[gateResult.label] = { totalConf: 0, count: 0 };
               votes[gateResult.label].totalConf += labelConf;
               votes[gateResult.label].count++;
             }
           }
-          // 과반수(2/3 이상) 투표를 받은 라벨만 통과
+          // 1개 이상 스케일에서 감지되면 통과 (더 관대한 게이트)
           for (const [label, v] of Object.entries(votes)) {
-            if (v.count >= 2 && v.totalConf / v.count > gateConf) {
+            if (v.count >= 1 && v.totalConf / v.count > gateConf) {
               gateLabel = label;
               gateConf = v.totalConf / v.count;
             }
@@ -1980,7 +1982,7 @@ function triggerInference() {
 
               const knnConf = result.confidences[gateLabel] || 0;
               const bgConf = result.confidences[BG_CLASS] || 0;
-              if (knnConf > bestConf && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 2) {
+              if (knnConf > bestConf && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 1.3) {
                 bestConf = knnConf;
                 bestIdx = i;
               }
@@ -1995,47 +1997,9 @@ function triggerInference() {
             p.isCustom = true;
           }
         } else if (gateLabel && filtered.length === 0) {
-          // COCO 미감지 + KNN 감지 → 세그멘테이션 확인으로 false positive 차단
-          let confirmed = false;
-          if (segmenterModel) {
-            try {
-              const result = segmenterModel.segment(video, {
-                keypoint: { x: 0.5, y: 0.5 },
-              });
-              if (result && result.categoryMask) {
-                const mask = result.categoryMask;
-                const mw = mask.width;
-                const mh = mask.height;
-                const md = mask.getAsUint8Array();
-                // 마스크에 사물이 일정 비율 이상 있어야 진짜 사물로 판단
-                let fg = 0;
-                for (let k = 0; k < md.length; k++) { if (md[k] > 0) fg++; }
-                const fgRatio = fg / md.length;
-                result.close();
-                if (fgRatio > 0.03) {
-                  // 세그멘테이션으로 배경 제거 후 KNN 재확인
-                  const maskedTensor = applyMaskAndCrop(video, new Uint8Array(md), mw, mh);
-                  if (maskedTensor) {
-                    const segFeatures = mobilenetModel.infer(maskedTensor, true);
-                    const segResult = await knnModel.predictClass(segFeatures);
-                    maskedTensor.dispose();
-                    segFeatures.dispose();
-                    const segBg = segResult.confidences[BG_CLASS] || 0;
-                    const segConf = segResult.confidences[gateLabel] || 0;
-                    if (segResult.label === gateLabel && segConf >= CUSTOM_CONF_THRESHOLD && segConf > segBg * 2) {
-                      confirmed = true;
-                      gateConf = (gateConf + segConf) / 2;
-                    }
-                  }
-                }
-              }
-            } catch (_) { /* skip segmentation confirmation */ }
-          } else {
-            // 세그멘터 없으면 raw 게이트 결과 신뢰
-            confirmed = true;
-          }
-
-          if (confirmed) {
+          // COCO 미감지 + KNN 게이트 통과 → 커스텀 전용 감지
+          // 게이트 투표를 이미 통과했으므로 바로 감지 허용
+          {
             const w = video.videoWidth || canvas.width || 640;
             const h = video.videoHeight || canvas.height || 480;
             filtered.push({
