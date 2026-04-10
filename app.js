@@ -144,6 +144,7 @@ let mobilenetModel = null;  // feature extractor (~4MB)
 let knnModel = null;        // KNN classifier
 let mobilenetLoading = null; // 중복 로드 방지용 Promise
 const CUSTOM_CONF_THRESHOLD = 0.8;
+const BG_CLASS = '__bg__'; // KNN 배경 클래스 (자동 학습, UI 에 노출 안 됨)
 
 // 슬라이더 값 표시
 confSlider.addEventListener('input', () => {
@@ -749,8 +750,8 @@ function rebuildClassPicker() {
   placeholder.textContent = '+ 사물 추가하기...';
   classPicker.appendChild(placeholder);
 
-  // 커스텀 학습 사물 먼저
-  const customNames = Object.keys(customClasses);
+  // 커스텀 학습 사물 먼저 (__bg__ 배경 클래스는 숨김)
+  const customNames = Object.keys(customClasses).filter((n) => n !== BG_CLASS);
   if (customNames.length > 0) {
     const group1 = document.createElement('optgroup');
     group1.label = '✨ 내가 가르친 사물';
@@ -821,7 +822,7 @@ function setTeachStatus(text) {
 
 function renderTaughtList() {
   taughtList.innerHTML = '';
-  const names = Object.keys(customClasses);
+  const names = Object.keys(customClasses).filter((n) => n !== BG_CLASS);
   if (names.length === 0) {
     const li = document.createElement('li');
     li.className = 'empty-hint';
@@ -899,6 +900,37 @@ function centerCropBbox(videoEl) {
   return [(vw - cw) / 2, (vh - ch) / 2, cw, ch];
 }
 
+// 사물 bbox 를 피해 배경 영역 bbox 들을 반환 (배경 네거티브 샘플용)
+function getBackgroundBboxes(videoEl, objectBbox) {
+  const vw = videoEl.videoWidth || 640;
+  const vh = videoEl.videoHeight || 480;
+  const [ox, oy, ow, oh] = objectBbox;
+  const bgs = [];
+  const minSize = 80;
+
+  // 사물 위쪽 영역
+  if (oy > minSize) {
+    bgs.push([0, 0, vw, Math.min(oy, vh * 0.4)]);
+  }
+  // 사물 아래쪽 영역
+  const bottom = oy + oh;
+  if (vh - bottom > minSize) {
+    bgs.push([0, Math.max(bottom, vh * 0.6), vw, vh - Math.max(bottom, vh * 0.6)]);
+  }
+  // 사물 왼쪽 영역
+  if (ox > minSize) {
+    bgs.push([0, 0, Math.min(ox, vw * 0.3), vh]);
+  }
+  // 사물 오른쪽 영역
+  const right = ox + ow;
+  if (vw - right > minSize) {
+    bgs.push([Math.max(right, vw * 0.7), 0, vw - Math.max(right, vw * 0.7), vh]);
+  }
+
+  // 유효한 bbox 만 반환 (너비/높이 > 0)
+  return bgs.filter(([, , w, h]) => w >= minSize && h >= minSize);
+}
+
 // 학습 버튼: 3초간 카메라에서 사물 bbox 를 크롭해 KNN 에 추가
 teachBtn.addEventListener('click', async () => {
   const name = teachName.value.trim();
@@ -927,6 +959,7 @@ teachBtn.addEventListener('click', async () => {
     setTeachStatus(`📸 '${name}' 학습 중... 사물을 화면 가운데 크게 비춰주세요!`);
 
     let added = 0;
+    let bgAdded = 0;
     let usedCoco = 0;
     let usedCenter = 0;
 
@@ -948,13 +981,24 @@ teachBtn.addEventListener('click', async () => {
         usedCenter++;
       }
 
-      // 3) bbox 영역만 크롭해서 feature 추출
+      // 3) bbox 영역만 크롭해서 사물 feature 추출
       const cropped = cropVideoRegion(video, bbox);
       const features = mobilenetModel.infer(cropped, true);
       knnModel.addExample(features, name);
       cropped.dispose();
       features.dispose();
       added++;
+
+      // 4) 배경(네거티브) 샘플 자동 학습 — 사물이 아닌 영역
+      const bgBoxes = getBackgroundBboxes(video, bbox);
+      for (const bgBbox of bgBoxes.slice(0, 2)) { // 프레임당 최대 2개
+        const bgCropped = cropVideoRegion(video, bgBbox);
+        const bgFeatures = mobilenetModel.infer(bgCropped, true);
+        knnModel.addExample(bgFeatures, BG_CLASS);
+        bgCropped.dispose();
+        bgFeatures.dispose();
+        bgAdded++;
+      }
 
       const method = detected ? `감지됨: ${detected.cocoClass}` : '중앙 크롭';
       setTeachStatus(`학습 중... ${i + 1}/${frameCount} (${method})`);
@@ -970,8 +1014,8 @@ teachBtn.addEventListener('click', async () => {
     await saveKnnDataset();
 
     const detail = usedCoco > 0
-      ? `사물 감지 ${usedCoco}회 + 중앙 크롭 ${usedCenter}회`
-      : `중앙 크롭 ${usedCenter}회 (사물이 잘 안 보이면 더 크게 비춰주세요)`;
+      ? `사물 ${usedCoco}회 + 배경 ${bgAdded}회`
+      : `중앙 크롭 ${usedCenter}회 + 배경 ${bgAdded}회`;
     setTeachStatus(`✓ '${name}' 학습 완료! ${customClasses[name].exampleCount}개 샘플 (${detail})`);
     teachName.value = '';
     renderTaughtList();
@@ -1626,8 +1670,8 @@ function triggerInference() {
             features.dispose();
 
             const knnConf = result.confidences[result.label] || 0;
-            if (knnConf >= CUSTOM_CONF_THRESHOLD) {
-              // COCO 라벨을 커스텀 라벨로 대체
+            if (knnConf >= CUSTOM_CONF_THRESHOLD && result.label !== BG_CLASS) {
+              // COCO 라벨을 커스텀 라벨로 대체 (배경이면 무시)
               p.originalCocoClass = p.class;
               p.class = result.label;
               p.score = knnConf;
@@ -1647,7 +1691,7 @@ function triggerInference() {
             features.dispose();
 
             const knnConf = result.confidences[result.label] || 0;
-            if (knnConf >= CUSTOM_CONF_THRESHOLD) {
+            if (knnConf >= CUSTOM_CONF_THRESHOLD && result.label !== BG_CLASS) {
               const w = video.videoWidth || canvas.width || 640;
               const h = video.videoHeight || canvas.height || 480;
               filtered.push({
