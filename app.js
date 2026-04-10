@@ -1448,24 +1448,32 @@ function playSounds(predictions) {
     }
   }
 
+  // 현재 감지된 커스텀 클래스 목록 (루프 재생 판단용)
+  const detectedCustom = new Set();
+  for (const p of predictions) {
+    if (p.isCustom) detectedCustom.add(p.class);
+  }
+
   // 매핑 entry 별로 후보 추출. 같은 entry 가 여러 클래스로 트리거되면
   // 그 중 가장 큰 볼륨을 사용.
-  const entryCandidates = new Map(); // entry.id -> { entry, multiplier }
+  const entryCandidates = new Map(); // entry.id -> { entry, multiplier, isCustomLoop }
   for (const [cls, vol] of classVol) {
+    const isCustom = detectedCustom.has(cls);
     for (const entry of findEntriesForClass(cls)) {
       const existing = entryCandidates.get(entry.id);
       if (!existing || existing.multiplier < vol) {
-        entryCandidates.set(entry.id, { entry, multiplier: vol });
+        entryCandidates.set(entry.id, { entry, multiplier: vol, isCustomLoop: isCustom });
       }
     }
   }
 
   // 쿨다운/재생중 필터
+  // 커스텀 사물 사운드: 재생 중이 아니면 쿨다운 무시 → 사물 감지 중 루프 재생
   const candidates = [];
   for (const c of entryCandidates.values()) {
     const id = c.entry.id;
     if (now < (playingUntil[id] || 0)) continue;
-    if (now - (lastPlayed[id] || 0) < cd) continue;
+    if (!c.isCustomLoop && now - (lastPlayed[id] || 0) < cd) continue;
     candidates.push(c);
   }
 
@@ -1491,14 +1499,19 @@ function playSounds(predictions) {
   for (const [cls, vol] of classVol) {
     if (findEntriesForClass(cls).length > 0) continue; // 이미 매핑 있음
     const ttsId = `__tts__${cls}`;
-    if (now - (lastPlayed[ttsId] || 0) < cd) continue;
+    const isCustomTts = detectedCustom.has(cls);
+    // 커스텀 사물: 재생 끝나면 바로 루프, 일반: 쿨다운 적용
+    if (!isCustomTts && now - (lastPlayed[ttsId] || 0) < cd) continue;
+    if (isCustomTts && now < (playingUntil[ttsId] || 0)) continue;
     // meSpeak 가 준비됐으면 진짜 병렬, 아니면 speechSynthesis 폴백
+    const ttsDuration = 1.5; // TTS 추정 재생 시간 (루프 겹침 방지)
     if (__meSpeakReady) {
       speakParallel(cls, vol);
     } else {
       speakClassName(cls, vol);
     }
     lastPlayed[ttsId] = now;
+    if (isCustomTts) playingUntil[ttsId] = now + ttsDuration;
   }
 }
 
@@ -1844,7 +1857,7 @@ function triggerInference() {
 
           const bgConf = gateResult.confidences[BG_CLASS] || 0;
           gateConf = gateResult.confidences[gateResult.label] || 0;
-          if (gateResult.label !== BG_CLASS && gateConf >= CUSTOM_CONF_THRESHOLD && gateConf > bgConf * 2) {
+          if (gateResult.label !== BG_CLASS && gateConf >= CUSTOM_CONF_THRESHOLD && gateConf > bgConf * 3) {
             gateLabel = gateResult.label;
           }
         } catch (_) { /* skip */ }
@@ -1856,7 +1869,7 @@ function triggerInference() {
           let bestConf = 0;
           for (let i = 0; i < filtered.length; i++) {
             // COCO 가 확신하는 클래스는 보호 (대체하지 않음)
-            if (filtered[i].score > 0.85) continue;
+            if (filtered[i].score > 0.70) continue;
             try {
               const cropped = cropVideoRegion(video, filtered[i].bbox);
               const features = mobilenetModel.infer(cropped, true);
@@ -1866,7 +1879,7 @@ function triggerInference() {
 
               const knnConf = result.confidences[gateLabel] || 0;
               const bgConf = result.confidences[BG_CLASS] || 0;
-              if (knnConf > bestConf && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 2) {
+              if (knnConf > bestConf && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 3) {
                 bestConf = knnConf;
                 bestIdx = i;
               }
