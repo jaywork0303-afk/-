@@ -893,7 +893,13 @@ function cornerCropBboxes(videoEl) {
   ];
 }
 
-// 학습 버튼: 3초간 카메라 중앙 크롭으로 사물 학습 (경량: MobileNet 만 사용)
+// rAF 기반 1프레임 대기 — 비디오 프레임 갱신 보장
+function waitNextFrame() {
+  return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+// 학습 버튼: 5초간 카메라 중앙 크롭으로 사물 학습
+// rAF 로 프레임을 분산해서 카메라가 멈추지 않음
 teachBtn.addEventListener('click', async () => {
   const name = teachName.value.trim();
   if (!name) {
@@ -909,28 +915,31 @@ teachBtn.addEventListener('click', async () => {
   setTeachStatus('학습 모듈 준비 중...');
   videoContainer.classList.add('teach-active');
 
+  // 카메라 화면으로 자동 스크롤
+  videoContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
   try {
     await ensureTeachModels();
 
-    const duration = 3000;
-    const frameCount = 15; // 프레임 수를 줄여 부담 경감
+    const duration = 5000; // 5초 학습
+    const frameCount = 20;
     const interval = duration / frameCount;
 
-    setTeachStatus(`📸 '${name}' 학습 중... 사물을 화면 가운데 크게 비춰주세요!`);
+    setTeachStatus(`📸 '${name}' 학습 중... (5초) 사물을 화면 가운데 크게 비춰주세요!`);
 
     let added = 0;
     let bgAdded = 0;
     const corners = cornerCropBboxes(video);
+    const startTime = performance.now();
 
     for (let i = 0; i < frameCount; i++) {
-      if (video.readyState < 2) {
-        await new Promise((r) => setTimeout(r, interval));
-        continue;
-      }
+      // rAF 대기: 비디오 프레임이 갱신된 뒤에 캡처 → 카메라 안 멈춤
+      await waitNextFrame();
 
-      // 1) 중앙 크롭으로 사물 학습 (COCO-SSD 안 씀 → 카메라 안 멈춤)
-      //    다양한 크기의 크롭으로 견고성 향상
-      const ratio = 0.4 + Math.random() * 0.2; // 40~60% 랜덤 크롭
+      if (video.readyState < 2) continue;
+
+      // 1) 중앙 크롭으로 사물 학습 (40~60% 랜덤)
+      const ratio = 0.4 + Math.random() * 0.2;
       const bbox = centerCropBbox(video, ratio);
       const cropped = cropVideoRegion(video, bbox);
       const features = mobilenetModel.infer(cropped, true);
@@ -939,9 +948,10 @@ teachBtn.addEventListener('click', async () => {
       features.dispose();
       added++;
 
-      // 2) 매 3번째 프레임마다 코너 1개를 배경으로 학습
-      if (i % 3 === 0) {
-        const corner = corners[Math.floor(i / 3) % corners.length];
+      // 2) 매 4번째 프레임마다 코너 1개를 배경으로 학습
+      if (i % 4 === 0) {
+        await waitNextFrame(); // 배경 추론 전에도 프레임 양보
+        const corner = corners[Math.floor(i / 4) % corners.length];
         const bgCropped = cropVideoRegion(video, corner);
         const bgFeatures = mobilenetModel.infer(bgCropped, true);
         knnModel.addExample(bgFeatures, BG_CLASS);
@@ -950,10 +960,12 @@ teachBtn.addEventListener('click', async () => {
         bgAdded++;
       }
 
-      setTeachStatus(`학습 중... ${i + 1}/${frameCount}`);
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+      setTeachStatus(`학습 중... ${i + 1}/${frameCount} (${elapsed}초)`);
 
-      // 매 프레임 사이에 메인 스레드 숨 돌리기
-      await new Promise((r) => setTimeout(r, interval));
+      // 다음 캡처까지 대기 (interval 에서 이미 소요된 시간 차감)
+      const wait = Math.max(0, interval - (performance.now() - startTime - i * interval));
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
 
     // 누적 기록
