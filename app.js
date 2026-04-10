@@ -1651,8 +1651,9 @@ function triggerInference() {
       const conf = parseFloat(confSlider.value);
       const filtered = predictions.filter((p) => p.score >= conf);
 
-      // KNN 사용자 사물 추론: 각 COCO bbox 를 크롭해 KNN 분류
-      // → 커스텀 사물이면 COCO 라벨을 대체 (겹침 문제 해결)
+      // KNN 사용자 사물 추론:
+      // 각 COCO bbox 를 크롭해 KNN 분류하되, 가장 확신 높은 1개만 대체.
+      // 나머지 COCO 라벨은 그대로 유지 → 키보드가 담배로 바뀌는 문제 방지.
       const hasKnn =
         mobilenetModel &&
         knnModel &&
@@ -1660,27 +1661,42 @@ function triggerInference() {
         knnModel.getNumClasses() > 0;
 
       if (hasKnn) {
-        // 1) 기존 COCO 감지에 대해 bbox 크롭 → KNN 재분류
-        for (const p of filtered) {
+        // 1) 모든 COCO bbox 에 KNN 을 돌려 후보 수집 (아직 대체 안 함)
+        const knnCandidates = []; // { index, label, conf }
+        for (let i = 0; i < filtered.length; i++) {
           try {
-            const cropped = cropVideoRegion(video, p.bbox);
+            const cropped = cropVideoRegion(video, filtered[i].bbox);
             const features = mobilenetModel.infer(cropped, true);
             const result = await knnModel.predictClass(features);
             cropped.dispose();
             features.dispose();
 
             const knnConf = result.confidences[result.label] || 0;
-            if (knnConf >= CUSTOM_CONF_THRESHOLD && result.label !== BG_CLASS) {
-              // COCO 라벨을 커스텀 라벨로 대체 (배경이면 무시)
-              p.originalCocoClass = p.class;
-              p.class = result.label;
-              p.score = knnConf;
-              p.isCustom = true;
+            const bgConf = result.confidences[BG_CLASS] || 0;
+            if (result.label !== BG_CLASS && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 1.5) {
+              knnCandidates.push({ index: i, label: result.label, conf: knnConf });
             }
           } catch (_) { /* skip */ }
         }
 
-        // 2) COCO 가 아무것도 못 찾았을 때: 중앙 크롭으로 한 번 시도
+        // 2) 커스텀 클래스별로 가장 확신 높은 bbox 1개만 대체
+        const replaced = new Set();
+        const byLabel = {};
+        for (const c of knnCandidates) {
+          if (!byLabel[c.label] || c.conf > byLabel[c.label].conf) {
+            byLabel[c.label] = c;
+          }
+        }
+        for (const best of Object.values(byLabel)) {
+          const p = filtered[best.index];
+          p.originalCocoClass = p.class;
+          p.class = best.label;
+          p.score = best.conf;
+          p.isCustom = true;
+          replaced.add(best.index);
+        }
+
+        // 3) COCO 가 아무것도 못 찾았을 때: 중앙 크롭으로 한 번 시도
         if (filtered.length === 0) {
           try {
             const bbox = centerCropBbox(video);
@@ -1691,7 +1707,8 @@ function triggerInference() {
             features.dispose();
 
             const knnConf = result.confidences[result.label] || 0;
-            if (knnConf >= CUSTOM_CONF_THRESHOLD && result.label !== BG_CLASS) {
+            const bgConf = result.confidences[BG_CLASS] || 0;
+            if (result.label !== BG_CLASS && knnConf >= CUSTOM_CONF_THRESHOLD && knnConf > bgConf * 1.5) {
               const w = video.videoWidth || canvas.width || 640;
               const h = video.videoHeight || canvas.height || 480;
               filtered.push({
