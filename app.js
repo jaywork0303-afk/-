@@ -1082,11 +1082,16 @@ teachBtn.addEventListener('click', async () => {
     return;
   }
 
-  // 탭 대기 모드
-  teachPendingName = name;
-  teachWaitingForTap = true;
-  videoContainer.classList.add('teach-tap-waiting');
-  setTeachStatus(`👆 카메라 화면에서 '${name}' 사물을 탭하세요!`);
+  // 카운트다운 후 화면 정중앙 기준 자동 학습
+  videoContainer.classList.add('teach-active');
+  for (let sec = 3; sec > 0; sec--) {
+    setTeachStatus(`📸 사물을 화면 가운데에 놓으세요! ${sec}초 후 학습 시작...`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  videoContainer.classList.remove('teach-active');
+
+  // 화면 정중앙 좌표 (0.5, 0.5) 기준 세그멘테이션 학습
+  runSegmentedTeach(name, 0.5, 0.5);
 });
 
 // 세그멘테이션 기반 학습 실행
@@ -1497,21 +1502,34 @@ function playSounds(predictions) {
     candidates.push(c);
   }
 
+  // 커스텀 루프 후보와 일반 후보 분리
+  const customLoopCandidates = candidates.filter((c) => c.isCustomLoop);
+  const normalCandidates = candidates.filter((c) => !c.isCustomLoop);
+
+  // 커스텀 루프 사운드: 항상 즉시 재생 (모드 무관)
+  for (const { entry, multiplier } of customLoopCandidates) {
+    playEntry(entry, multiplier);
+    lastPlayed[entry.id] = now;
+  }
+
   if (multiModeEl.checked) {
-    // 다중 모드: 모두 재생
-    for (const { entry, multiplier } of candidates) {
+    // 다중 모드: 일반 후보 모두 재생
+    for (const { entry, multiplier } of normalCandidates) {
       playEntry(entry, multiplier);
       lastPlayed[entry.id] = now;
     }
   } else {
-    // 단일 모드: 가장 큰 볼륨의 entry 1개만
-    if (now - (lastPlayed.__last__ || 0) < TONE_DURATION) return;
-    candidates.sort((a, b) => b.multiplier - a.multiplier);
-    if (candidates.length > 0) {
-      const { entry, multiplier } = candidates[0];
-      playEntry(entry, multiplier);
-      lastPlayed[entry.id] = now;
-      lastPlayed.__last__ = now;
+    // 단일 모드: 일반 후보 중 가장 큰 볼륨 1개만
+    if (now - (lastPlayed.__last__ || 0) < TONE_DURATION) {
+      // TONE_DURATION 블록이지만 TTS 폴백은 계속 처리해야 함
+    } else {
+      normalCandidates.sort((a, b) => b.multiplier - a.multiplier);
+      if (normalCandidates.length > 0) {
+        const { entry, multiplier } = normalCandidates[0];
+        playEntry(entry, multiplier);
+        lastPlayed[entry.id] = now;
+        lastPlayed.__last__ = now;
+      }
     }
   }
 
