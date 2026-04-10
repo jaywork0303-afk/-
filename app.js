@@ -3,11 +3,14 @@
 // ══════════════════════════════════════════════════════════════
 (function initPaywall() {
   const PAYWALL_KEY = '__paywall_start__';
-  const TOTAL_SEC = 24 * 60 * 60; // 24시간
+  const TOTAL_SEC = 30 * 60; // 30분
 
-  // 최초 방문 시 타이머 시작 시각 기록
-  if (!localStorage.getItem(PAYWALL_KEY)) {
+  // 타이머 시작 시각 기록 (변경 시 리셋)
+  const saved = localStorage.getItem(PAYWALL_KEY);
+  const PAYWALL_VER = '30m';
+  if (!saved || localStorage.getItem('__paywall_ver__') !== PAYWALL_VER) {
     localStorage.setItem(PAYWALL_KEY, Date.now().toString());
+    localStorage.setItem('__paywall_ver__', PAYWALL_VER);
   }
 
   const overlay = document.getElementById('paywall-overlay');
