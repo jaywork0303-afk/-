@@ -1766,6 +1766,12 @@ startBtn.addEventListener('click', async () => {
       await loadModel();
     }
 
+    // 저장된 커스텀 클래스가 있으면 MobileNet+KNN 자동 로드 (재방문 시 인식 복원)
+    if (Object.keys(customClasses).length > 0 && !mobilenetModel) {
+      overlayMessage.textContent = '학습된 사물 복원 중...';
+      await ensureTeachModels();
+    }
+
     overlayMessage.textContent = '카메라 권한 요청 중...';
     await startCamera();
 
