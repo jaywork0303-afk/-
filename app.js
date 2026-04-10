@@ -855,7 +855,51 @@ function renderTaughtList() {
   }
 }
 
-// 학습 버튼: 3초간 카메라로 프레임을 캡처해 KNN 에 추가
+// ---- 크롭 유틸: bbox 영역을 캔버스에 그려서 텐서로 변환 ----
+const _teachCropCanvas = document.createElement('canvas');
+const _teachCropCtx = _teachCropCanvas.getContext('2d');
+
+// video 에서 [x, y, w, h] 영역을 잘라 224x224 텐서로 변환
+function cropVideoRegion(videoEl, bbox) {
+  const [bx, by, bw, bh] = bbox;
+  _teachCropCanvas.width = 224;
+  _teachCropCanvas.height = 224;
+  _teachCropCtx.drawImage(videoEl, bx, by, bw, bh, 0, 0, 224, 224);
+  return tf.browser.fromPixels(_teachCropCanvas);
+}
+
+// COCO-SSD 로 프레임에서 감지된 가장 큰 사물의 bbox 를 반환 (없으면 중앙 50%)
+async function detectTeachBbox(videoEl) {
+  if (!model) return null;
+  try {
+    const preds = await model.detect(videoEl, 5);
+    if (preds.length === 0) return null;
+    // 가장 면적이 큰 감지 결과 (화면 중앙에 크게 비춘 사물일 가능성 높음)
+    let best = preds[0];
+    let bestArea = best.bbox[2] * best.bbox[3];
+    for (let i = 1; i < preds.length; i++) {
+      const area = preds[i].bbox[2] * preds[i].bbox[3];
+      if (area > bestArea) {
+        best = preds[i];
+        bestArea = area;
+      }
+    }
+    return { bbox: best.bbox, cocoClass: best.class };
+  } catch (_) {
+    return null;
+  }
+}
+
+// 중앙 50% 크롭 영역
+function centerCropBbox(videoEl) {
+  const vw = videoEl.videoWidth || 640;
+  const vh = videoEl.videoHeight || 480;
+  const cw = vw * 0.5;
+  const ch = vh * 0.5;
+  return [(vw - cw) / 2, (vh - ch) / 2, cw, ch];
+}
+
+// 학습 버튼: 3초간 카메라에서 사물 bbox 를 크롭해 KNN 에 추가
 teachBtn.addEventListener('click', async () => {
   const name = teachName.value.trim();
   if (!name) {
@@ -870,6 +914,9 @@ teachBtn.addEventListener('click', async () => {
   teachBtn.disabled = true;
   setTeachStatus('학습 모듈 준비 중...');
 
+  // show guide overlay
+  videoContainer.classList.add('teach-active');
+
   try {
     await ensureTeachModels();
 
@@ -877,19 +924,40 @@ teachBtn.addEventListener('click', async () => {
     const frameCount = 30;
     const interval = duration / frameCount;
 
-    setTeachStatus(`'${name}' 학습 중... 카메라에 사물을 크게 비춰주세요!`);
+    setTeachStatus(`📸 '${name}' 학습 중... 사물을 화면 가운데 크게 비춰주세요!`);
 
     let added = 0;
+    let usedCoco = 0;
+    let usedCenter = 0;
+
     for (let i = 0; i < frameCount; i++) {
       if (video.readyState < 2) {
         await new Promise((r) => setTimeout(r, interval));
         continue;
       }
-      const features = mobilenetModel.infer(video, true); // embedding
+
+      // 1) COCO-SSD 로 사물 bbox 감지 시도
+      let bbox;
+      const detected = await detectTeachBbox(video);
+      if (detected) {
+        bbox = detected.bbox;
+        usedCoco++;
+      } else {
+        // 2) 감지 실패 시 중앙 50% 크롭
+        bbox = centerCropBbox(video);
+        usedCenter++;
+      }
+
+      // 3) bbox 영역만 크롭해서 feature 추출
+      const cropped = cropVideoRegion(video, bbox);
+      const features = mobilenetModel.infer(cropped, true);
       knnModel.addExample(features, name);
+      cropped.dispose();
       features.dispose();
       added++;
-      setTeachStatus(`학습 중... ${i + 1}/${frameCount}`);
+
+      const method = detected ? `감지됨: ${detected.cocoClass}` : '중앙 크롭';
+      setTeachStatus(`학습 중... ${i + 1}/${frameCount} (${method})`);
       await new Promise((r) => setTimeout(r, interval));
     }
 
@@ -901,7 +969,10 @@ teachBtn.addEventListener('click', async () => {
     };
     await saveKnnDataset();
 
-    setTeachStatus(`✓ '${name}' 학습 완료! (총 ${customClasses[name].exampleCount}개 샘플)`);
+    const detail = usedCoco > 0
+      ? `사물 감지 ${usedCoco}회 + 중앙 크롭 ${usedCenter}회`
+      : `중앙 크롭 ${usedCenter}회 (사물이 잘 안 보이면 더 크게 비춰주세요)`;
+    setTeachStatus(`✓ '${name}' 학습 완료! ${customClasses[name].exampleCount}개 샘플 (${detail})`);
     teachName.value = '';
     renderTaughtList();
     rebuildClassPicker();
@@ -910,6 +981,7 @@ teachBtn.addEventListener('click', async () => {
     setTeachStatus(`오류: ${e.message}`);
   } finally {
     teachBtn.disabled = false;
+    videoContainer.classList.remove('teach-active');
   }
 });
 
@@ -1535,31 +1607,57 @@ function triggerInference() {
       const conf = parseFloat(confSlider.value);
       const filtered = predictions.filter((p) => p.score >= conf);
 
-      // KNN 사용자 사물 추론 (MobileNet 로드되어 있고 학습 데이터가 있을 때만)
-      if (
+      // KNN 사용자 사물 추론: 각 COCO bbox 를 크롭해 KNN 분류
+      // → 커스텀 사물이면 COCO 라벨을 대체 (겹침 문제 해결)
+      const hasKnn =
         mobilenetModel &&
         knnModel &&
         knnModel.getNumClasses &&
-        knnModel.getNumClasses() > 0
-      ) {
-        try {
-          const features = mobilenetModel.infer(video, true);
-          const result = await knnModel.predictClass(features);
-          features.dispose();
-          const topConf = result.confidences[result.label] || 0;
-          if (topConf >= CUSTOM_CONF_THRESHOLD) {
-            // 전체 프레임의 80% 를 덮는 가상 bbox (badge 용)
-            const w = video.videoWidth || canvas.width || 640;
-            const h = video.videoHeight || canvas.height || 480;
-            filtered.push({
-              class: result.label,
-              score: topConf,
-              bbox: [w * 0.1, h * 0.1, w * 0.8, h * 0.8],
-              isCustom: true,
-            });
-          }
-        } catch (e) {
-          console.error('KNN predict failed', e);
+        knnModel.getNumClasses() > 0;
+
+      if (hasKnn) {
+        // 1) 기존 COCO 감지에 대해 bbox 크롭 → KNN 재분류
+        for (const p of filtered) {
+          try {
+            const cropped = cropVideoRegion(video, p.bbox);
+            const features = mobilenetModel.infer(cropped, true);
+            const result = await knnModel.predictClass(features);
+            cropped.dispose();
+            features.dispose();
+
+            const knnConf = result.confidences[result.label] || 0;
+            if (knnConf >= CUSTOM_CONF_THRESHOLD) {
+              // COCO 라벨을 커스텀 라벨로 대체
+              p.originalCocoClass = p.class;
+              p.class = result.label;
+              p.score = knnConf;
+              p.isCustom = true;
+            }
+          } catch (_) { /* skip */ }
+        }
+
+        // 2) COCO 가 아무것도 못 찾았을 때: 중앙 크롭으로 한 번 시도
+        if (filtered.length === 0) {
+          try {
+            const bbox = centerCropBbox(video);
+            const cropped = cropVideoRegion(video, bbox);
+            const features = mobilenetModel.infer(cropped, true);
+            const result = await knnModel.predictClass(features);
+            cropped.dispose();
+            features.dispose();
+
+            const knnConf = result.confidences[result.label] || 0;
+            if (knnConf >= CUSTOM_CONF_THRESHOLD) {
+              const w = video.videoWidth || canvas.width || 640;
+              const h = video.videoHeight || canvas.height || 480;
+              filtered.push({
+                class: result.label,
+                score: knnConf,
+                bbox: [w * 0.15, h * 0.15, w * 0.7, h * 0.7],
+                isCustom: true,
+              });
+            }
+          } catch (_) { /* skip */ }
         }
       }
 

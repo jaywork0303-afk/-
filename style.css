@@ -907,6 +907,72 @@ input[type='range'] {
 /* ============================================================
    사물 직접 가르치기 (Teachable Machine)
    ============================================================ */
+/* 학습 가이드 오버레이: 카메라에 타겟 프레임 표시 */
+.video-container.teach-active::before {
+  content: '📸 사물을 화면 가운데 크게 비춰주세요!';
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: auto;
+  min-width: 280px;
+  height: auto;
+  padding: 6px 18px;
+  background: var(--pink-hot);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 12px;
+  z-index: 30;
+  opacity: 1;
+  animation: teach-pulse 1s ease-in-out infinite;
+}
+.video-container.teach-active .teach-guide-overlay {
+  display: block;
+}
+.teach-guide-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  border-radius: 22px 14px 28px 16px;
+  overflow: hidden;
+}
+.teach-guide-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 55% 55% at 50% 50%,
+      transparent 0%,
+      transparent 70%,
+      rgba(255, 46, 126, 0.25) 100%
+    );
+}
+.teach-guide-overlay::after {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 70%;
+  height: 70%;
+  border: 4px dashed var(--pink-hot);
+  border-radius: 18px;
+  opacity: 0.7;
+  animation: teach-border-pulse 1.5s ease-in-out infinite;
+}
+@keyframes teach-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+@keyframes teach-border-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
 .teach-section {
   margin: 12px 0;
   padding: 10px 12px;
