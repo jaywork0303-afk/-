@@ -973,6 +973,50 @@ input[type='range'] {
   50% { opacity: 1; transform: scale(1.02); }
 }
 
+/* 탭 대기 모드: 사용자가 사물을 탭하라는 안내 */
+.video-container.teach-tap-waiting {
+  cursor: crosshair;
+}
+.video-container.teach-tap-waiting::before {
+  content: '👆 사물을 탭하세요!';
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: auto;
+  min-width: 200px;
+  height: auto;
+  padding: 8px 20px;
+  background: var(--lavender-ink);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 14px;
+  z-index: 30;
+  opacity: 1;
+  animation: teach-pulse 0.8s ease-in-out infinite;
+}
+.video-container.teach-tap-waiting .teach-guide-overlay {
+  display: block;
+}
+.video-container.teach-tap-waiting .teach-guide-overlay::before {
+  background: radial-gradient(
+    ellipse 60% 60% at 50% 50%,
+    transparent 0%,
+    transparent 50%,
+    rgba(144, 96, 255, 0.2) 100%
+  );
+}
+.video-container.teach-tap-waiting .teach-guide-overlay::after {
+  border-color: var(--lavender-ink);
+  animation: teach-border-pulse 1s ease-in-out infinite;
+}
+/* 탭 대기 시 비디오 위에 클릭 가능하게 */
+.video-container.teach-tap-waiting #overlay {
+  pointer-events: none;
+}
+
 .teach-section {
   margin: 12px 0;
   padding: 10px 12px;

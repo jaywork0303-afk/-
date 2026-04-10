@@ -146,6 +146,10 @@ let mobilenetLoading = null; // 중복 로드 방지용 Promise
 const CUSTOM_CONF_THRESHOLD = 0.8;
 const BG_CLASS = '__bg__'; // KNN 배경 클래스 (자동 학습, UI 에 노출 안 됨)
 
+// ---- MediaPipe Interactive Segmenter ----
+let segmenterModel = null;
+let segmenterLoading = null;
+
 // 슬라이더 값 표시
 confSlider.addEventListener('input', () => {
   confValue.textContent = parseFloat(confSlider.value).toFixed(2);
@@ -777,6 +781,129 @@ function rebuildClassPicker() {
   classPicker.value = current;
 }
 
+// ---- MediaPipe Interactive Segmenter (lazy 로드, dynamic import) ----
+async function ensureSegmenter() {
+  if (segmenterModel) return;
+  if (segmenterLoading) return segmenterLoading;
+
+  segmenterLoading = (async () => {
+    statusEl.textContent = 'AI 세그멘테이션 모듈 로딩 중...';
+    const vision = await import(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs'
+    );
+    const fileset = await vision.FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+    );
+    statusEl.textContent = 'AI 세그멘테이션 모델 로딩 중...';
+    segmenterModel = await vision.InteractiveSegmenter.createFromOptions(fileset, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-tasks/interactive_segmenter/ptm_512_hdt_ptm_woid.tflite',
+      },
+      outputCategoryMask: true,
+      outputConfidenceMasks: false,
+    });
+    statusEl.textContent = 'AI 세그멘테이션 준비 완료';
+  })();
+
+  try {
+    await segmenterLoading;
+  } finally {
+    segmenterLoading = null;
+  }
+}
+
+// 세그멘테이션 마스크를 사용해서 배경을 검정으로 칠한 224x224 텐서 반환
+const _segCanvas = document.createElement('canvas');
+const _segCtx = _segCanvas.getContext('2d', { willReadFrequently: true });
+
+function applyMaskAndCrop(videoEl, maskData, maskWidth, maskHeight) {
+  const vw = videoEl.videoWidth || 640;
+  const vh = videoEl.videoHeight || 480;
+
+  // 원본 비디오 프레임을 캔버스에 그리기
+  _segCanvas.width = vw;
+  _segCanvas.height = vh;
+  _segCtx.drawImage(videoEl, 0, 0, vw, vh);
+  const imageData = _segCtx.getImageData(0, 0, vw, vh);
+  const pixels = imageData.data;
+
+  // 마스크 크기가 비디오와 다를 수 있으므로 스케일링
+  const scaleX = maskWidth / vw;
+  const scaleY = maskHeight / vh;
+
+  // 사물 영역의 bounding box 계산 (크롭용)
+  let minX = vw, minY = vh, maxX = 0, maxY = 0;
+  let hasForeground = false;
+
+  for (let y = 0; y < vh; y++) {
+    for (let x = 0; x < vw; x++) {
+      const mx = Math.min(Math.floor(x * scaleX), maskWidth - 1);
+      const my = Math.min(Math.floor(y * scaleY), maskHeight - 1);
+      const maskVal = maskData[my * maskWidth + mx];
+      const idx = (y * vw + x) * 4;
+
+      if (maskVal === 0) {
+        // 배경 → 검정
+        pixels[idx] = 0;
+        pixels[idx + 1] = 0;
+        pixels[idx + 2] = 0;
+      } else {
+        // 사물 영역
+        hasForeground = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (!hasForeground) return null;
+
+  _segCtx.putImageData(imageData, 0, 0);
+
+  // 사물 영역만 크롭해서 224x224로 리사이즈
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  // 약간 패딩 추가
+  const pad = Math.max(bw, bh) * 0.1;
+  const cx = Math.max(0, minX - pad);
+  const cy = Math.max(0, minY - pad);
+  const cw = Math.min(vw - cx, bw + pad * 2);
+  const ch = Math.min(vh - cy, bh + pad * 2);
+
+  _teachCropCanvas.width = 224;
+  _teachCropCanvas.height = 224;
+  _teachCropCtx.fillStyle = '#000';
+  _teachCropCtx.fillRect(0, 0, 224, 224);
+  _teachCropCtx.drawImage(_segCanvas, cx, cy, cw, ch, 0, 0, 224, 224);
+
+  return tf.browser.fromPixels(_teachCropCanvas);
+}
+
+// 세그멘테이션 마스크를 오버레이 캔버스에 시각화
+function drawSegMask(maskData, maskWidth, maskHeight) {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const scaleX = maskWidth / cw;
+  const scaleY = maskHeight / ch;
+
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#ff2e7e';
+  for (let y = 0; y < ch; y += 3) { // 3px 간격으로 성능 최적화
+    for (let x = 0; x < cw; x += 3) {
+      const mx = Math.min(Math.floor(x * scaleX), maskWidth - 1);
+      const my = Math.min(Math.floor(y * scaleY), maskHeight - 1);
+      if (maskData[my * maskWidth + mx] !== 0) {
+        ctx.fillRect(x, y, 3, 3);
+      }
+    }
+  }
+  ctx.restore();
+}
+
 // MobileNet + KNN 로드 (lazy, 중복 로드 방지)
 async function ensureTeachModels() {
   if (mobilenetModel && knnModel) return;
@@ -898,8 +1025,35 @@ function waitNextFrame() {
   return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
 
-// 학습 버튼: 5초간 카메라 중앙 크롭으로 사물 학습
-// rAF 로 프레임을 분산해서 카메라가 멈추지 않음
+// ---- 학습 플로우: 탭 → AI 세그멘테이션 → 마스크 학습 ----
+// 상태 플래그
+let teachWaitingForTap = false;
+let teachPendingName = '';
+
+// 사용자가 카메라 화면을 탭했을 때 학습 시작
+function onTeachTap(e) {
+  if (!teachWaitingForTap) return;
+
+  // 탭 좌표를 비디오 좌표계로 변환 (0~1 정규화)
+  const rect = videoContainer.getBoundingClientRect();
+  let nx = (e.clientX - rect.left) / rect.width;
+  let ny = (e.clientY - rect.top) / rect.height;
+  // 전면 카메라면 X 좌우 반전
+  if (videoContainer.classList.contains('unflip')) {
+    nx = 1.0 - nx;
+  }
+  nx = Math.max(0, Math.min(1, nx));
+  ny = Math.max(0, Math.min(1, ny));
+
+  teachWaitingForTap = false;
+  videoContainer.classList.remove('teach-tap-waiting');
+
+  // 학습 실행
+  runSegmentedTeach(teachPendingName, nx, ny);
+}
+videoContainer.addEventListener('click', onTeachTap);
+
+// 학습 버튼: 탭 대기 모드 진입
 teachBtn.addEventListener('click', async () => {
   const name = teachName.value.trim();
   if (!name) {
@@ -912,20 +1066,38 @@ teachBtn.addEventListener('click', async () => {
   }
 
   teachBtn.disabled = true;
-  setTeachStatus('학습 모듈 준비 중...');
-  videoContainer.classList.add('teach-active');
 
   // 카메라 화면으로 자동 스크롤
   videoContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+  // 모델 로드 (MobileNet + KNN + Segmenter)
+  setTeachStatus('AI 모듈 준비 중...');
   try {
     await ensureTeachModels();
+    await ensureSegmenter();
+  } catch (e) {
+    console.error(e);
+    setTeachStatus(`오류: ${e.message}`);
+    teachBtn.disabled = false;
+    return;
+  }
 
-    const duration = 5000; // 5초 학습
+  // 탭 대기 모드
+  teachPendingName = name;
+  teachWaitingForTap = true;
+  videoContainer.classList.add('teach-tap-waiting');
+  setTeachStatus(`👆 카메라 화면에서 '${name}' 사물을 탭하세요!`);
+});
+
+// 세그멘테이션 기반 학습 실행
+async function runSegmentedTeach(name, tapX, tapY) {
+  videoContainer.classList.add('teach-active');
+  setTeachStatus(`📸 '${name}' 세그멘테이션 학습 시작...`);
+
+  try {
+    const duration = 5000;
     const frameCount = 20;
     const interval = duration / frameCount;
-
-    setTeachStatus(`📸 '${name}' 학습 중... (5초) 사물을 화면 가운데 크게 비춰주세요!`);
 
     let added = 0;
     let bgAdded = 0;
@@ -933,37 +1105,71 @@ teachBtn.addEventListener('click', async () => {
     const startTime = performance.now();
 
     for (let i = 0; i < frameCount; i++) {
-      // rAF 대기: 비디오 프레임이 갱신된 뒤에 캡처 → 카메라 안 멈춤
       await waitNextFrame();
-
       if (video.readyState < 2) continue;
 
-      // 1) 중앙 크롭으로 사물 학습 (40~60% 랜덤)
-      const ratio = 0.4 + Math.random() * 0.2;
-      const bbox = centerCropBbox(video, ratio);
-      const cropped = cropVideoRegion(video, bbox);
-      const features = mobilenetModel.infer(cropped, true);
-      knnModel.addExample(features, name);
-      cropped.dispose();
-      features.dispose();
-      added++;
+      // 1) MediaPipe 세그멘테이션: 탭 좌표 기준 마스크 생성
+      let maskData = null;
+      let maskWidth = 0;
+      let maskHeight = 0;
 
-      // 2) 매 4번째 프레임마다 코너 1개를 배경으로 학습
-      if (i % 4 === 0) {
-        await waitNextFrame(); // 배경 추론 전에도 프레임 양보
-        const corner = corners[Math.floor(i / 4) % corners.length];
-        const bgCropped = cropVideoRegion(video, corner);
-        const bgFeatures = mobilenetModel.infer(bgCropped, true);
-        knnModel.addExample(bgFeatures, BG_CLASS);
-        bgCropped.dispose();
-        bgFeatures.dispose();
-        bgAdded++;
+      try {
+        const result = segmenterModel.segment(video, {
+          keypoint: { x: tapX, y: tapY },
+        });
+
+        if (result && result.categoryMask) {
+          const mask = result.categoryMask;
+          maskWidth = mask.width;
+          maskHeight = mask.height;
+          // Uint8Array 복사 (MediaPipe 가 내부 버퍼를 재사용하므로)
+          maskData = new Uint8Array(mask.getAsUint8Array());
+          result.close();
+        }
+      } catch (segErr) {
+        console.warn('segmentation failed, fallback to center crop', segErr);
+      }
+
+      if (maskData) {
+        // 2a) 마스크로 배경 제거 → 사물만 학습
+        const maskedTensor = applyMaskAndCrop(video, maskData, maskWidth, maskHeight);
+        if (maskedTensor) {
+          const features = mobilenetModel.infer(maskedTensor, true);
+          knnModel.addExample(features, name);
+          maskedTensor.dispose();
+          features.dispose();
+          added++;
+        }
+
+        // 오버레이에 마스크 시각화
+        drawSegMask(maskData, maskWidth, maskHeight);
+
+        // 2b) 배경 영역(마스크 반전)도 학습
+        if (i % 4 === 0) {
+          await waitNextFrame();
+          const corner = corners[Math.floor(i / 4) % corners.length];
+          const bgCropped = cropVideoRegion(video, corner);
+          const bgFeatures = mobilenetModel.infer(bgCropped, true);
+          knnModel.addExample(bgFeatures, BG_CLASS);
+          bgCropped.dispose();
+          bgFeatures.dispose();
+          bgAdded++;
+        }
+      } else {
+        // 세그멘테이션 실패 시 중앙 크롭 폴백
+        const ratio = 0.4 + Math.random() * 0.2;
+        const bbox = centerCropBbox(video, ratio);
+        const cropped = cropVideoRegion(video, bbox);
+        const features = mobilenetModel.infer(cropped, true);
+        knnModel.addExample(features, name);
+        cropped.dispose();
+        features.dispose();
+        added++;
       }
 
       const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
       setTeachStatus(`학습 중... ${i + 1}/${frameCount} (${elapsed}초)`);
 
-      // 다음 캡처까지 대기 (interval 에서 이미 소요된 시간 차감)
       const wait = Math.max(0, interval - (performance.now() - startTime - i * interval));
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
@@ -978,7 +1184,7 @@ teachBtn.addEventListener('click', async () => {
 
     setTeachStatus(
       `✓ '${name}' 학습 완료! ${customClasses[name].exampleCount}개 샘플 ` +
-      `(배경 ${bgAdded}개 포함)`
+      `(AI 세그멘테이션 · 배경 ${bgAdded}개)`
     );
     teachName.value = '';
     renderTaughtList();
@@ -990,7 +1196,7 @@ teachBtn.addEventListener('click', async () => {
     teachBtn.disabled = false;
     videoContainer.classList.remove('teach-active');
   }
-});
+}
 
 // 페이지 로드 시 저장된 커스텀 클래스 목록 복원 (텐서는 lazy)
 (async () => {
