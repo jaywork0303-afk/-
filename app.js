@@ -56,6 +56,8 @@ const playingUntil = {};
 const activeSources = new Set();
 // 현재 재생 중인 HTMLMediaElement 들 (비디오/폴백 경로용)
 const activeElements = new Set();
+// 커스텀 사물 루프 재생 추적: entryId -> { source, gain, cls, kind, element }
+const customLoopSources = new Map();
 
 // 추론은 메인 스레드에서 무겁기 때문에 비디오 페인트와 분리해서 운영한다.
 // - latestPredictions: 마지막으로 받은 추론 결과 (rAF 가 매 프레임 그리기만 함)
@@ -1432,6 +1434,51 @@ function playEntry(entry, multiplier = 1.0) {
   }
 }
 
+// ── 커스텀 사물 루프 재생/정지 ──
+function startCustomLoop(entry, multiplier) {
+  if (!entry || customLoopSources.has(entry.id)) return;
+  const vol = (entry.volume ?? 1.0) * multiplier;
+
+  if (entry.kind === 'buffer' && audioContext && entry.buffer) {
+    const source = audioContext.createBufferSource();
+    source.buffer = entry.buffer;
+    source.loop = true;
+    source.playbackRate.value = entry.rate ?? 1.0;
+    const gain = audioContext.createGain();
+    gain.gain.value = Math.max(0.05, Math.min(1, vol));
+    source.connect(gain).connect(audioContext.destination);
+    source.start();
+    customLoopSources.set(entry.id, { source, gain, kind: 'buffer' });
+  } else if (entry.kind === 'element' && entry.mediaElement) {
+    const el = entry.mediaElement.cloneNode(true);
+    el.loop = true;
+    el.volume = Math.max(0, Math.min(1, vol));
+    el.playbackRate = entry.rate ?? 1.0;
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+    customLoopSources.set(entry.id, { element: el, kind: 'element' });
+  } else if (entry.kind === 'tone') {
+    // tone 은 짧은 비프음이라 루프 부적합 → 일반 재생으로 처리
+    playEntry(entry, multiplier);
+  }
+}
+
+function stopCustomLoop(entryId) {
+  const info = customLoopSources.get(entryId);
+  if (!info) return;
+  try {
+    if (info.kind === 'buffer' && info.source) {
+      info.source.stop();
+    } else if (info.kind === 'element' && info.element) {
+      info.element.pause();
+      info.element.currentTime = 0;
+      info.element.src = '';
+    }
+  } catch (_) { /* already stopped */ }
+  customLoopSources.delete(entryId);
+}
+
 // 모든 재생 중 사운드 즉시 중단 + 상태 리셋
 function stopAllSounds() {
   for (const src of activeSources) {
@@ -1454,6 +1501,11 @@ function stopAllSounds() {
   }
   activeElements.clear();
 
+  // 커스텀 루프 사운드 정지
+  for (const entryId of [...customLoopSources.keys()]) {
+    stopCustomLoop(entryId);
+  }
+
   for (const k of Object.keys(playingUntil)) delete playingUntil[k];
   for (const k of Object.keys(lastPlayed)) delete lastPlayed[k];
 }
@@ -1473,59 +1525,64 @@ function playSounds(predictions) {
     }
   }
 
-  // 현재 감지된 커스텀 클래스 목록 (루프 재생 판단용)
+  // ── 커스텀 사물 루프 사운드 관리 ──
+  // 현재 감지 중인 커스텀 클래스와 매핑된 엔트리 파악
   const detectedCustom = new Set();
   for (const p of predictions) {
     if (p.isCustom) detectedCustom.add(p.class);
   }
 
-  // 매핑 entry 별로 후보 추출. 같은 entry 가 여러 클래스로 트리거되면
-  // 그 중 가장 큰 볼륨을 사용.
-  const entryCandidates = new Map(); // entry.id -> { entry, multiplier, isCustomLoop }
+  // 커스텀 사물에 매핑된 엔트리: 감지 중이면 루프 시작, 사라지면 정지
+  const activeCustomEntryIds = new Set();
+  for (const cls of detectedCustom) {
+    for (const entry of findEntriesForClass(cls)) {
+      activeCustomEntryIds.add(entry.id);
+      if (!customLoopSources.has(entry.id)) {
+        // 새로 루프 시작
+        startCustomLoop(entry, 1.0);
+      }
+    }
+  }
+  // 사라진 커스텀 사물의 루프 정지
+  for (const [entryId, info] of customLoopSources) {
+    if (!activeCustomEntryIds.has(entryId)) {
+      stopCustomLoop(entryId);
+    }
+  }
+
+  // 매핑 entry 별로 후보 추출 (커스텀 루프 엔트리 제외)
+  const entryCandidates = new Map(); // entry.id -> { entry, multiplier }
   for (const [cls, vol] of classVol) {
-    const isCustom = detectedCustom.has(cls);
+    if (detectedCustom.has(cls)) continue; // 커스텀은 루프로 별도 처리
     for (const entry of findEntriesForClass(cls)) {
       const existing = entryCandidates.get(entry.id);
       if (!existing || existing.multiplier < vol) {
-        entryCandidates.set(entry.id, { entry, multiplier: vol, isCustomLoop: isCustom });
+        entryCandidates.set(entry.id, { entry, multiplier: vol });
       }
     }
   }
 
-  // 쿨다운/재생중 필터
-  // 커스텀 사물 사운드: 재생 중이 아니면 쿨다운 무시 → 사물 감지 중 루프 재생
+  // 쿨다운/재생중 필터 (일반 사운드만)
   const candidates = [];
   for (const c of entryCandidates.values()) {
     const id = c.entry.id;
     if (now < (playingUntil[id] || 0)) continue;
-    if (!c.isCustomLoop && now - (lastPlayed[id] || 0) < cd) continue;
+    if (now - (lastPlayed[id] || 0) < cd) continue;
     candidates.push(c);
   }
 
-  // 커스텀 루프 후보와 일반 후보 분리
-  const customLoopCandidates = candidates.filter((c) => c.isCustomLoop);
-  const normalCandidates = candidates.filter((c) => !c.isCustomLoop);
-
-  // 커스텀 루프 사운드: 항상 즉시 재생 (모드 무관)
-  for (const { entry, multiplier } of customLoopCandidates) {
-    playEntry(entry, multiplier);
-    lastPlayed[entry.id] = now;
-  }
-
   if (multiModeEl.checked) {
-    // 다중 모드: 일반 후보 모두 재생
-    for (const { entry, multiplier } of normalCandidates) {
+    for (const { entry, multiplier } of candidates) {
       playEntry(entry, multiplier);
       lastPlayed[entry.id] = now;
     }
   } else {
-    // 단일 모드: 일반 후보 중 가장 큰 볼륨 1개만
     if (now - (lastPlayed.__last__ || 0) < TONE_DURATION) {
-      // TONE_DURATION 블록이지만 TTS 폴백은 계속 처리해야 함
+      // TONE_DURATION 블록 — TTS 폴백은 아래에서 계속 처리
     } else {
-      normalCandidates.sort((a, b) => b.multiplier - a.multiplier);
-      if (normalCandidates.length > 0) {
-        const { entry, multiplier } = normalCandidates[0];
+      candidates.sort((a, b) => b.multiplier - a.multiplier);
+      if (candidates.length > 0) {
+        const { entry, multiplier } = candidates[0];
         playEntry(entry, multiplier);
         lastPlayed[entry.id] = now;
         lastPlayed.__last__ = now;
@@ -1533,23 +1590,18 @@ function playSounds(predictions) {
     }
   }
 
-  // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 동시에 읽어준다 ──
+  // ── TTS 폴백: 매핑이 없는 클래스는 클래스 이름을 읽어준다 ──
   for (const [cls, vol] of classVol) {
-    if (findEntriesForClass(cls).length > 0) continue; // 이미 매핑 있음
+    if (detectedCustom.has(cls)) continue; // 커스텀은 루프로 처리
+    if (findEntriesForClass(cls).length > 0) continue;
     const ttsId = `__tts__${cls}`;
-    const isCustomTts = detectedCustom.has(cls);
-    // 커스텀 사물: 재생 끝나면 바로 루프, 일반: 쿨다운 적용
-    if (!isCustomTts && now - (lastPlayed[ttsId] || 0) < cd) continue;
-    if (isCustomTts && now < (playingUntil[ttsId] || 0)) continue;
-    // meSpeak 가 준비됐으면 진짜 병렬, 아니면 speechSynthesis 폴백
-    const ttsDuration = 1.5; // TTS 추정 재생 시간 (루프 겹침 방지)
+    if (now - (lastPlayed[ttsId] || 0) < cd) continue;
     if (__meSpeakReady) {
       speakParallel(cls, vol);
     } else {
       speakClassName(cls, vol);
     }
     lastPlayed[ttsId] = now;
-    if (isCustomTts) playingUntil[ttsId] = now + ttsDuration;
   }
 }
 
