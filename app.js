@@ -148,6 +148,45 @@ let mobilenetLoading = null; // 중복 로드 방지용 Promise
 const CUSTOM_CONF_THRESHOLD = 0.55;
 const BG_CLASS = '__bg__'; // KNN 배경 클래스 (자동 학습, UI 에 노출 안 됨)
 
+// ---- L2 정규화 + 코사인 유사도 기반 피처 추출 (D+F) ----
+// L2 normalize → KNN Euclidean distance ≈ cosine distance
+function extractFeatures(inputTensor) {
+  const raw = mobilenetModel.infer(inputTensor, true);
+  const normalized = tf.tidy(() => {
+    const norm = raw.norm();
+    return raw.div(norm.add(1e-7)); // L2 정규화
+  });
+  raw.dispose();
+  return normalized;
+}
+
+// ---- 시간 평활화 (A): 최근 N프레임 게이트 결과 버퍼 ----
+const GATE_HISTORY_SIZE = 5;
+const gateHistory = []; // [{ label, conf }]
+function pushGateResult(label, conf) {
+  gateHistory.push({ label, conf });
+  if (gateHistory.length > GATE_HISTORY_SIZE) gateHistory.shift();
+}
+function getSmoothedGate() {
+  const votes = {};
+  for (const { label, conf } of gateHistory) {
+    if (!label) continue;
+    if (!votes[label]) votes[label] = { totalConf: 0, count: 0 };
+    votes[label].totalConf += conf;
+    votes[label].count++;
+  }
+  let best = null;
+  let bestScore = 0;
+  for (const [label, v] of Object.entries(votes)) {
+    // 최근 5프레임 중 3회 이상 감지 + 평균 신뢰도
+    if (v.count >= 3 && v.totalConf / v.count > bestScore) {
+      best = label;
+      bestScore = v.totalConf / v.count;
+    }
+  }
+  return { label: best, conf: bestScore };
+}
+
 // ---- MediaPipe Interactive Segmenter ----
 let segmenterModel = null;
 let segmenterLoading = null;
@@ -998,6 +1037,24 @@ function cropVideoRegion(videoEl, bbox) {
   return tf.browser.fromPixels(_teachCropCanvas);
 }
 
+// ---- 데이터 증강 (C): 학습 샘플 다양성 확보 ----
+const _augCanvas = document.createElement('canvas');
+const _augCtx = _augCanvas.getContext('2d');
+
+// 텐서를 좌우 반전한 새 텐서 반환
+function augmentFlip(sourceTensor) {
+  // sourceTensor 는 224x224 크롭에서 생성된 것
+  // 캔버스에 그린 후 반전해서 다시 텐서로
+  _augCanvas.width = 224;
+  _augCanvas.height = 224;
+  return tf.tidy(() => tf.reverse(sourceTensor, 1)); // axis=1 → 좌우 반전
+}
+
+// 밝기 변화 텐서 반환 (factor: 0.7~1.3)
+function augmentBrightness(sourceTensor, factor) {
+  return tf.tidy(() => tf.clipByValue(sourceTensor.mul(factor), 0, 255));
+}
+
 // 중앙 크롭 영역 (ratio: 0~1, 기본 0.5 = 50%)
 function centerCropBbox(videoEl, ratio) {
   const r = ratio || 0.5;
@@ -1140,7 +1197,7 @@ async function runSegmentedTeach(name, tapX, tapY) {
         // 2a) 세그멘테이션 마스크 → 사물만 학습
         const maskedTensor = applyMaskAndCrop(video, maskData, maskWidth, maskHeight);
         if (maskedTensor) {
-          const features = mobilenetModel.infer(maskedTensor, true);
+          const features = extractFeatures(maskedTensor);
           knnModel.addExample(features, name);
           maskedTensor.dispose();
           features.dispose();
@@ -1148,14 +1205,40 @@ async function runSegmentedTeach(name, tapX, tapY) {
         }
 
         // 2b) raw 중앙 크롭도 함께 학습 (추론 시 피처 일치 보장)
-        const rawRatio = 0.35 + Math.random() * 0.3; // 35~65% 다양한 크기
+        const rawRatio = 0.35 + Math.random() * 0.3;
         const rawBbox = centerCropBbox(video, rawRatio);
         const rawCropped = cropVideoRegion(video, rawBbox);
-        const rawFeatures = mobilenetModel.infer(rawCropped, true);
+        const rawFeatures = extractFeatures(rawCropped);
         knnModel.addExample(rawFeatures, name);
+        added++;
+
+        // 2b-aug) 데이터 증강: 좌우 반전 + 밝기 변화
+        if (i % 3 === 0) {
+          const flipped = augmentFlip(rawCropped);
+          const flipFeatures = extractFeatures(flipped);
+          knnModel.addExample(flipFeatures, name);
+          flipped.dispose();
+          flipFeatures.dispose();
+          added++;
+        }
+        if (i % 3 === 1) {
+          const bright = augmentBrightness(rawCropped, 1.25);
+          const brightFeatures = extractFeatures(bright);
+          knnModel.addExample(brightFeatures, name);
+          bright.dispose();
+          brightFeatures.dispose();
+          added++;
+        }
+        if (i % 3 === 2) {
+          const dark = augmentBrightness(rawCropped, 0.75);
+          const darkFeatures = extractFeatures(dark);
+          knnModel.addExample(darkFeatures, name);
+          dark.dispose();
+          darkFeatures.dispose();
+          added++;
+        }
         rawCropped.dispose();
         rawFeatures.dispose();
-        added++;
 
         // 오버레이에 마스크 시각화
         drawSegMask(maskData, maskWidth, maskHeight);
@@ -1165,7 +1248,7 @@ async function runSegmentedTeach(name, tapX, tapY) {
           await waitNextFrame();
           const corner = corners[Math.floor(i / 2) % corners.length];
           const bgCropped = cropVideoRegion(video, corner);
-          const bgFeatures = mobilenetModel.infer(bgCropped, true);
+          const bgFeatures = extractFeatures(bgCropped);
           knnModel.addExample(bgFeatures, BG_CLASS);
           bgCropped.dispose();
           bgFeatures.dispose();
@@ -1176,7 +1259,7 @@ async function runSegmentedTeach(name, tapX, tapY) {
         const ratio = 0.35 + Math.random() * 0.25;
         const bbox = centerCropBbox(video, ratio);
         const cropped = cropVideoRegion(video, bbox);
-        const features = mobilenetModel.infer(cropped, true);
+        const features = extractFeatures(cropped);
         knnModel.addExample(features, name);
         cropped.dispose();
         features.dispose();
@@ -1186,7 +1269,7 @@ async function runSegmentedTeach(name, tapX, tapY) {
         if (i % 2 === 0) {
           const corner = corners[Math.floor(i / 2) % corners.length];
           const bgCropped = cropVideoRegion(video, corner);
-          const bgFeatures = mobilenetModel.infer(bgCropped, true);
+          const bgFeatures = extractFeatures(bgCropped);
           knnModel.addExample(bgFeatures, BG_CLASS);
           bgCropped.dispose();
           bgFeatures.dispose();
@@ -1945,7 +2028,7 @@ function triggerInference() {
           for (const scale of gateScales) {
             const gateBbox = centerCropBbox(video, scale);
             const gateCropped = cropVideoRegion(video, gateBbox);
-            const gateFeatures = mobilenetModel.infer(gateCropped, true);
+            const gateFeatures = extractFeatures(gateCropped);
             const gateResult = await knnModel.predictClass(gateFeatures);
             gateCropped.dispose();
             gateFeatures.dispose();
@@ -1958,14 +2041,23 @@ function triggerInference() {
               votes[gateResult.label].count++;
             }
           }
-          // 1개 이상 스케일에서 감지되면 통과 (더 관대한 게이트)
+          // 이번 프레임 최고 라벨
+          let frameLabel = null;
+          let frameConf = 0;
           for (const [label, v] of Object.entries(votes)) {
-            if (v.count >= 1 && v.totalConf / v.count > gateConf) {
-              gateLabel = label;
-              gateConf = v.totalConf / v.count;
+            if (v.count >= 1 && v.totalConf / v.count > frameConf) {
+              frameLabel = label;
+              frameConf = v.totalConf / v.count;
             }
           }
-        } catch (_) { /* skip */ }
+          // 시간 평활화: 최근 5프레임 기록에 추가 → 3회 이상 감지 시 통과
+          pushGateResult(frameLabel, frameConf);
+          const smoothed = getSmoothedGate();
+          gateLabel = smoothed.label;
+          gateConf = smoothed.conf;
+        } catch (_) {
+          pushGateResult(null, 0);
+        }
 
         if (gateLabel && filtered.length > 0) {
           // 2단계: COCO bbox 중 가장 비슷한 1개만 대체
@@ -1975,7 +2067,7 @@ function triggerInference() {
             if (filtered[i].score > 0.70) continue;
             try {
               const cropped = cropVideoRegion(video, filtered[i].bbox);
-              const features = mobilenetModel.infer(cropped, true);
+              const features = extractFeatures(cropped);
               const result = await knnModel.predictClass(features);
               cropped.dispose();
               features.dispose();
