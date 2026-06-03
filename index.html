@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Single+Day&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=20260603-video" />
+  <link rel="stylesheet" href="style.css?v=20260603-video2" />
 </head>
 <body>
   <!-- SVG 필터 + 재사용 doodle symbol 들 -->
@@ -236,6 +236,11 @@
         그대로 인식해요. 영상은 인터넷으로 전송되지 않고 이 브라우저 안에서만
         재생돼요 ♡
       </p>
+      <label class="check">
+        <input type="checkbox" id="videoAudioToggle" />
+        <span>🔊 영상 원본 소리도 같이 켜기</span>
+      </label>
+      <p class="hint">끄면 감지 사운드만 나와요 (업로드 영상에만 적용돼요)</p>
 
       <div id="status" class="status">대기 중이야 ~</div>
 
@@ -359,6 +364,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   <script src="vendor/mespeak/mespeak.js"></script>
-  <script src="app.js?v=20260603-video"></script>
+  <script src="app.js?v=20260603-video2"></script>
 </body>
 </html>

@@ -95,6 +95,8 @@ const camSwitchBtn = document.getElementById('camSwitchBtn');
 // 영상 업로드 (카메라 대신 파일 영상에서 인식)
 const uploadVideoBtn = document.getElementById('uploadVideoBtn');
 const videoFileInput = document.getElementById('videoFileInput');
+// 업로드 영상 원본 소리 on/off 토글
+const videoAudioToggle = document.getElementById('videoAudioToggle');
 // 새 매핑 추가 UI
 const mapName = document.getElementById('mapName');
 const classPicker = document.getElementById('classPicker');
@@ -1905,7 +1907,8 @@ async function startVideoFile(file) {
   videoObjectUrl = URL.createObjectURL(file);
   video.src = videoObjectUrl;
   video.loop = true;        // 끝나면 자동 반복 → 계속 인식
-  video.muted = true;       // 영상 자체 소리는 끔 (감지 사운드와 겹치지 않게)
+  // 원본 소리 토글 on 이면 영상 소리도 같이 재생, off 면 감지 사운드만
+  video.muted = !videoAudioToggle.checked;
   usingVideoFile = true;
   // 업로드 영상은 좌우반전하지 않는다 (전면 카메라용 unflip 해제)
   videoContainer.classList.remove('unflip');
@@ -2323,6 +2326,17 @@ startBtn.addEventListener('click', async () => {
 
 // ── 영상 업로드 → 카메라 화면 자리에서 재생하며 인식 ──
 uploadVideoBtn.addEventListener('click', () => videoFileInput.click());
+
+// 원본 소리 토글: 영상 재생 중이면 즉시 음소거 on/off 반영
+videoAudioToggle.addEventListener('change', () => {
+  if (!usingVideoFile) return;
+  video.muted = !videoAudioToggle.checked;
+  // 일부 브라우저는 음소거 해제 시 재생을 막을 수 있어 한 번 더 play 시도
+  if (!video.muted) {
+    const p = video.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
+});
 
 videoFileInput.addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
