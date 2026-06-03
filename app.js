@@ -51,6 +51,11 @@ let running = false;
 // 업로드한 영상 파일로 인식 중인지 여부 + 해제할 object URL
 let usingVideoFile = false;
 let videoObjectUrl = null;
+
+// 오버레이 캔버스 해상도 상한 (성능): HD 영상이어도 박스/효과는 이 크기로만 그림.
+// 실제 영상은 <video> 가 풀해상도로 표시하므로 화질엔 영향 없음.
+const MAX_OVERLAY = 640;
+let overlayScale = 1; // 캔버스 px / 영상 px (감지 좌표 변환용)
 let audioContext = null;
 const lastPlayed = {};
 // label -> 재생 종료 예정 시각(초). 아직 재생 중이면 재트리거 금지.
@@ -987,7 +992,7 @@ const _trailCtx = _trailCanvas.getContext('2d');
 
 let lastSegTime = 0;
 let segInFlight = false;
-const MIN_SEG_INTERVAL_MS = 140;   // 세그멘테이션/트레일 갱신 간격
+const MIN_SEG_INTERVAL_MS = 200;   // 세그멘테이션/트레일 갱신 간격 (성능: 블로킹 빈도 ↓)
 const MAX_SEG_PERSONS = 2;         // 한 번에 분할할 최대 사람 수
 const TRAIL_FADE = 0.22;           // 갱신마다 잔상이 옅어지는 정도 (0~1, 클수록 빨리 사라짐)
 
@@ -1018,10 +1023,10 @@ function ensureTrailSize() {
   }
 }
 
-// 마스크 가장자리(윤곽)를 트레일 캔버스에 점선(점들)으로 찍는다 (video 좌표계)
-function strokeMaskOutlineToTrail(combined, mW, mH, vw, vh, color) {
-  const sx = vw / mW;
-  const sy = vh / mH;
+// 마스크 가장자리(윤곽)를 트레일 캔버스에 점선(점들)으로 찍는다 (캔버스 px 좌표계)
+function strokeMaskOutlineToTrail(combined, mW, mH, cw, ch, color) {
+  const sx = cw / mW;
+  const sy = ch / mH;
   const dot = Math.max(2, Math.round(sx * 1.6));
   _trailCtx.fillStyle = color;
   for (let y = 1; y < mH - 1; y++) {
@@ -1042,14 +1047,15 @@ function strokeMaskOutlineToTrail(combined, mW, mH, vw, vh, color) {
   }
 }
 
-// 폴백: 사람 bbox 둘레를 점선으로 (세그멘터 로딩 전/실패 시)
+// 폴백: 사람 bbox 둘레를 점선으로 (세그멘터 로딩 전/실패 시). 좌표는 캔버스 px 로 변환.
 function strokeBoxOutlineToTrail(boxes, color) {
+  const s = overlayScale;
   _trailCtx.save();
   _trailCtx.strokeStyle = color;
   _trailCtx.lineWidth = 3;
   _trailCtx.setLineDash([12, 9]);
   for (const b of boxes) {
-    _trailCtx.strokeRect(b[0], b[1], b[2], b[3]);
+    _trailCtx.strokeRect(b[0] * s, b[1] * s, b[2] * s, b[3] * s);
   }
   _trailCtx.restore();
 }
@@ -1154,7 +1160,8 @@ async function updatePersonSilhouette(persons) {
     _trailCtx.restore();
 
     if (combined) {
-      strokeMaskOutlineToTrail(combined, mW, mH, vw, vh, color);
+      // 마스크 → 캔버스(capped) 좌표로 매핑
+      strokeMaskOutlineToTrail(combined, mW, mH, canvas.width, canvas.height, color);
     } else {
       strokeBoxOutlineToTrail(targets.map((p) => p.bbox), color);
     }
@@ -1162,14 +1169,13 @@ async function updatePersonSilhouette(persons) {
 }
 
 // 색 채움 + 점선 잔상을 오버레이에 그린다 (박스보다 먼저 → 박스/라벨이 위에 보이게)
+// 성능을 위해 매 프레임 shadowBlur(글로우)는 쓰지 않는다 (비쌈).
 function drawPersonSilhouette() {
   // (1) 색 채움
   if (silhouetteToggle.checked && fillValid && _fillCanvas.width) {
     ctx.save();
     ctx.globalAlpha = parseFloat(silhouetteAlpha.value) || 0.5;
     ctx.imageSmoothingEnabled = true;
-    ctx.shadowColor = silhouetteColor.value;
-    ctx.shadowBlur = 16;
     ctx.drawImage(
       _fillCanvas,
       0, 0, _fillCanvas.width, _fillCanvas.height,
@@ -1179,11 +1185,7 @@ function drawPersonSilhouette() {
   }
   // (2) 점선 잔상
   if (trailToggle.checked && _trailCanvas.width) {
-    ctx.save();
-    ctx.shadowColor = silhouetteColor.value;
-    ctx.shadowBlur = 8;
     ctx.drawImage(_trailCanvas, 0, 0);
-    ctx.restore();
   }
 }
 
@@ -2081,6 +2083,18 @@ async function loadModel() {
   statusEl.textContent = `모델 로드 완료 (${tf.getBackend()})`;
 }
 
+// 오버레이 캔버스 크기를 종횡비 유지하며 MAX_OVERLAY 이하로 설정한다.
+// overlayScale 로 감지 bbox(영상 px) → 캔버스 px 변환 비율을 보관.
+function setOverlaySize(srcW, srcH) {
+  srcW = srcW || 640;
+  srcH = srcH || 480;
+  const longest = Math.max(srcW, srcH);
+  const s = longest > MAX_OVERLAY ? MAX_OVERLAY / longest : 1;
+  canvas.width = Math.round(srcW * s);
+  canvas.height = Math.round(srcH * s);
+  overlayScale = canvas.width / srcW;
+}
+
 async function startCamera() {
   // 이전 스트림이 있으면 먼저 정리 (카메라 전환 시)
   if (stream) {
@@ -2105,8 +2119,7 @@ async function startCamera() {
     video.onloadedmetadata = () => resolve();
   });
   await video.play();
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  setOverlaySize(video.videoWidth, video.videoHeight);
 
   // 전면 카메라는 브라우저가 프리뷰를 좌우반전시키는 경우가 많아서
   // unflip 클래스로 CSS scaleX(-1) 적용 → 실제 좌우 복원
@@ -2169,8 +2182,7 @@ async function startVideoFile(file) {
   });
 
   await video.play();
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  setOverlaySize(video.videoWidth, video.videoHeight);
 }
 
 // 카메라 스트림 또는 업로드 영상을 모두 정리한다.
@@ -2203,15 +2215,19 @@ function drawDetections(predictions) {
 
   // 거리 모드일 때: 사람 중심점을 미리 모아두고, 각 사물에서 가장 가까운 사람으로
   // 옅은 선을 그어 시각적으로 페어링을 보여준다
+  const s = overlayScale; // 영상 px → 캔버스 px
   const distMode = distanceMode.checked;
   const personCenters = distMode
     ? predictions
         .filter((p) => p.class === 'person')
-        .map((p) => [p.bbox[0] + p.bbox[2] / 2, p.bbox[1] + p.bbox[3] / 2])
+        .map((p) => [(p.bbox[0] + p.bbox[2] / 2) * s, (p.bbox[1] + p.bbox[3] / 2) * s])
     : [];
 
   predictions.forEach((p) => {
-    const [x, y, w, h] = p.bbox;
+    const x = p.bbox[0] * s;
+    const y = p.bbox[1] * s;
+    const w = p.bbox[2] * s;
+    const h = p.bbox[3] * s;
     const isPerson = p.class === 'person';
     const isCustom = !!p.isCustom;
     const hasSnd = hasSound(p.class);
