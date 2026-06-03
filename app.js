@@ -97,11 +97,12 @@ const uploadVideoBtn = document.getElementById('uploadVideoBtn');
 const videoFileInput = document.getElementById('videoFileInput');
 // 업로드 영상 원본 소리 on/off 토글
 const videoAudioToggle = document.getElementById('videoAudioToggle');
-// 사람 실루엣 색 필터
+// 사람 실루엣 색 필터 + 점선 잔상
 const silhouetteToggle = document.getElementById('silhouetteToggle');
 const silhouetteColor = document.getElementById('silhouetteColor');
 const silhouetteAlpha = document.getElementById('silhouetteAlpha');
 const silhouetteAlphaValue = document.getElementById('silhouetteAlphaValue');
+const trailToggle = document.getElementById('trailToggle');
 // 새 매핑 추가 UI
 const mapName = document.getElementById('mapName');
 const classPicker = document.getElementById('classPicker');
@@ -220,9 +221,14 @@ falloffSlider.addEventListener('input', () => {
 silhouetteAlpha.addEventListener('input', () => {
   silhouetteAlphaValue.textContent = parseFloat(silhouetteAlpha.value).toFixed(2);
 });
-// 필터를 끄면 즉시 실루엣 제거
+// 필터를 끄면 즉시 해당 효과 제거
 silhouetteToggle.addEventListener('change', () => {
-  if (!silhouetteToggle.checked) clearPersonSilhouette();
+  if (!silhouetteToggle.checked) fillValid = false;
+});
+trailToggle.addEventListener('change', () => {
+  if (!trailToggle.checked && _trailCanvas.width) {
+    _trailCtx.clearRect(0, 0, _trailCanvas.width, _trailCanvas.height);
+  }
 });
 
 // ---------- IndexedDB: 업로드 사운드 + KNN 학습 데이터 영구 저장 ----------
@@ -966,18 +972,24 @@ function drawSegMask(maskData, maskWidth, maskHeight) {
 }
 
 // ============================================================
-//  사람 실루엣 색 필터
-//  - 감지된 사람의 bbox 중심을 keypoint 로 InteractiveSegmenter 실행
-//  - 사람 영역만 색을 채운 마스크를 오프스크린 캔버스에 캐시
-//  - 페인트 루프에서 캐시된 마스크를 스케일해 그려 부드럽게 표시
+//  사람 실루엣 이펙트
+//   (1) 색 채움 필터 — 사람 영역을 색으로 채움 (현재 프레임)
+//   (2) 점선 잔상(트레일) — 사람 윤곽을 점선으로, 시간차로 잔상을 남김
+//  - 감지된 사람 bbox 중심을 keypoint 로 InteractiveSegmenter 실행
+//  - keypoint 위치의 마스크 값을 '사람' 값으로 사용 → 라벨 규칙에 무관하게 견고
+//  - 세그멘터가 아직 없으면 bbox 사각형으로 폴백해 항상 무언가 보이게 함
 // ============================================================
-const _personMaskCanvas = document.createElement('canvas');
-const _personMaskCtx = _personMaskCanvas.getContext('2d', { willReadFrequently: true });
-let personMaskValid = false;       // 그릴 마스크가 준비됐는지
-let lastSegTime = 0;               // 마지막 세그멘테이션 시각
-let segInFlight = false;           // 세그멘터 로드 대기 중복 방지
-const MIN_SEG_INTERVAL_MS = 180;   // 세그멘테이션 최소 간격 (성능)
+const _fillCanvas = document.createElement('canvas');   // 색 채움(마스크 해상도)
+const _fillCtx = _fillCanvas.getContext('2d', { willReadFrequently: true });
+let fillValid = false;
+const _trailCanvas = document.createElement('canvas');  // 점선 잔상(오버레이 해상도, 페이드 누적)
+const _trailCtx = _trailCanvas.getContext('2d');
+
+let lastSegTime = 0;
+let segInFlight = false;
+const MIN_SEG_INTERVAL_MS = 140;   // 세그멘테이션/트레일 갱신 간격
 const MAX_SEG_PERSONS = 2;         // 한 번에 분할할 최대 사람 수
+const TRAIL_FADE = 0.22;           // 갱신마다 잔상이 옅어지는 정도 (0~1, 클수록 빨리 사라짐)
 
 function hexToRgb(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -986,26 +998,67 @@ function hexToRgb(hex) {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-function clearPersonSilhouette() {
-  personMaskValid = false;
+// 두 효과 중 하나라도 켜져 있나?
+function silhouetteEnabled() {
+  return silhouetteToggle.checked || trailToggle.checked;
 }
 
-// 감지된 사람들에 대해 실루엣 마스크를 갱신한다 (throttle 적용).
+function clearPersonSilhouette() {
+  fillValid = false;
+  if (_trailCanvas.width) {
+    _trailCtx.clearRect(0, 0, _trailCanvas.width, _trailCanvas.height);
+  }
+}
+
+// 트레일 캔버스를 오버레이(=비디오) 해상도에 맞춘다
+function ensureTrailSize() {
+  if (_trailCanvas.width !== canvas.width || _trailCanvas.height !== canvas.height) {
+    _trailCanvas.width = canvas.width;
+    _trailCanvas.height = canvas.height;
+  }
+}
+
+// 마스크 가장자리(윤곽)를 트레일 캔버스에 점선(점들)으로 찍는다 (video 좌표계)
+function strokeMaskOutlineToTrail(combined, mW, mH, vw, vh, color) {
+  const sx = vw / mW;
+  const sy = vh / mH;
+  const dot = Math.max(2, Math.round(sx * 1.6));
+  _trailCtx.fillStyle = color;
+  for (let y = 1; y < mH - 1; y++) {
+    const row = y * mW;
+    for (let x = 1; x < mW - 1; x++) {
+      if (!combined[row + x]) continue;
+      // 4방향이 모두 사람이면 내부 → 건너뜀 (가장자리만 남김)
+      if (
+        combined[row + x - 1] &&
+        combined[row + x + 1] &&
+        combined[row - mW + x] &&
+        combined[row + mW + x]
+      ) continue;
+      // 점선: 좌표 합으로 듬성듬성 찍기
+      if ((x + y) % 5 > 1) continue;
+      _trailCtx.fillRect(x * sx - dot / 2, y * sy - dot / 2, dot, dot);
+    }
+  }
+}
+
+// 폴백: 사람 bbox 둘레를 점선으로 (세그멘터 로딩 전/실패 시)
+function strokeBoxOutlineToTrail(boxes, color) {
+  _trailCtx.save();
+  _trailCtx.strokeStyle = color;
+  _trailCtx.lineWidth = 3;
+  _trailCtx.setLineDash([12, 9]);
+  for (const b of boxes) {
+    _trailCtx.strokeRect(b[0], b[1], b[2], b[3]);
+  }
+  _trailCtx.restore();
+}
+
+// 감지된 사람들에 대해 색 채움 마스크 + 점선 잔상을 갱신한다 (throttle 적용).
 // triggerInference 의 detect().then 안에서 호출 → 추론 주기로 자연 제한됨.
 async function updatePersonSilhouette(persons) {
-  if (!silhouetteToggle.checked || persons.length === 0) {
+  if (!silhouetteEnabled() || persons.length === 0) {
     clearPersonSilhouette();
-    return;
-  }
-
-  // 세그멘터가 아직 없으면 로드만 트리거하고 이번 프레임은 건너뜀
-  if (!segmenterModel) {
-    if (!segInFlight) {
-      segInFlight = true;
-      ensureSegmenter()
-        .catch((e) => console.warn('세그멘터 로드 실패', e))
-        .finally(() => { segInFlight = false; });
-    }
     return;
   }
 
@@ -1016,82 +1069,122 @@ async function updatePersonSilhouette(persons) {
   const vw = video.videoWidth || canvas.width;
   const vh = video.videoHeight || canvas.height;
   if (!vw || !vh) return;
+  ensureTrailSize();
 
-  // 면적이 큰 순서로 최대 N명만 분할 (성능 보호)
+  // 면적이 큰 순서로 최대 N명만 처리 (성능 보호)
   const targets = [...persons]
     .sort((a, b) => b.bbox[2] * b.bbox[3] - a.bbox[2] * a.bbox[3])
     .slice(0, MAX_SEG_PERSONS);
+
+  // 세그멘터 로드 (비동기). 준비 전에는 bbox 폴백으로 표시.
+  if (!segmenterModel && !segInFlight) {
+    segInFlight = true;
+    ensureSegmenter()
+      .catch((e) => console.warn('세그멘터 로드 실패 → 박스 폴백 사용', e))
+      .finally(() => { segInFlight = false; });
+  }
 
   let combined = null;
   let mW = 0;
   let mH = 0;
 
-  for (const p of targets) {
-    const cx = (p.bbox[0] + p.bbox[2] / 2) / vw;
-    const cy = (p.bbox[1] + p.bbox[3] / 2) / vh;
-    const nx = Math.min(0.999, Math.max(0.001, cx));
-    const ny = Math.min(0.999, Math.max(0.001, cy));
-    try {
-      const result = segmenterModel.segment(video, { keypoint: { x: nx, y: ny } });
-      if (result && result.categoryMask) {
-        const mask = result.categoryMask;
-        const data = mask.getAsUint8Array();
-        if (!combined) {
-          mW = mask.width;
-          mH = mask.height;
-          combined = new Uint8Array(mW * mH);
-        }
-        if (mask.width === mW && mask.height === mH) {
-          for (let i = 0; i < combined.length; i++) {
-            if (data[i] !== 0) combined[i] = 1;
+  if (segmenterModel) {
+    for (const p of targets) {
+      const cx = (p.bbox[0] + p.bbox[2] / 2) / vw;
+      const cy = (p.bbox[1] + p.bbox[3] / 2) / vh;
+      const nx = Math.min(0.999, Math.max(0.001, cx));
+      const ny = Math.min(0.999, Math.max(0.001, cy));
+      try {
+        const result = segmenterModel.segment(video, { keypoint: { x: nx, y: ny } });
+        if (result && result.categoryMask) {
+          const mask = result.categoryMask;
+          const data = mask.getAsUint8Array();
+          if (!combined) {
+            mW = mask.width;
+            mH = mask.height;
+            combined = new Uint8Array(mW * mH);
           }
+          if (mask.width === mW && mask.height === mH) {
+            // keypoint 위치의 마스크 값 = '사람' 값 (배경/사람 라벨 규칙에 무관하게 견고)
+            const kx = Math.min(mW - 1, Math.max(0, Math.round(nx * mW)));
+            const ky = Math.min(mH - 1, Math.max(0, Math.round(ny * mH)));
+            const personVal = data[ky * mW + kx];
+            for (let i = 0; i < combined.length; i++) {
+              if (data[i] === personVal) combined[i] = 1;
+            }
+          }
+          result.close();
         }
-        result.close();
+      } catch (e) {
+        console.warn('사람 세그멘테이션 실패', e);
       }
-    } catch (e) {
-      console.warn('사람 세그멘테이션 실패', e);
     }
   }
 
-  if (!combined) {
-    clearPersonSilhouette();
-    return;
+  const color = silhouetteColor.value;
+
+  // (1) 색 채움 — 마스크가 있을 때만
+  if (combined && silhouetteToggle.checked) {
+    const { r, g, b } = hexToRgb(color);
+    const img = _fillCtx.createImageData(mW, mH);
+    const px = img.data;
+    for (let i = 0; i < combined.length; i++) {
+      if (combined[i]) {
+        const o = i * 4;
+        px[o] = r;
+        px[o + 1] = g;
+        px[o + 2] = b;
+        px[o + 3] = 255;
+      }
+    }
+    _fillCanvas.width = mW;
+    _fillCanvas.height = mH;
+    _fillCtx.putImageData(img, 0, 0);
+    fillValid = true;
+  } else {
+    fillValid = false;
   }
 
-  // 색이 채워진 RGBA 마스크를 오프스크린 캔버스에 그려 캐시
-  const { r, g, b } = hexToRgb(silhouetteColor.value);
-  const img = _personMaskCtx.createImageData(mW, mH);
-  const px = img.data;
-  for (let i = 0; i < combined.length; i++) {
-    const o = i * 4;
-    if (combined[i]) {
-      px[o] = r;
-      px[o + 1] = g;
-      px[o + 2] = b;
-      px[o + 3] = 255; // 알파는 그릴 때 globalAlpha 로 조절
+  // (2) 점선 잔상 — 기존 잔상 페이드 후 새 윤곽 추가
+  if (trailToggle.checked) {
+    _trailCtx.save();
+    _trailCtx.globalCompositeOperation = 'destination-out';
+    _trailCtx.fillStyle = `rgba(0,0,0,${TRAIL_FADE})`;
+    _trailCtx.fillRect(0, 0, _trailCanvas.width, _trailCanvas.height);
+    _trailCtx.restore();
+
+    if (combined) {
+      strokeMaskOutlineToTrail(combined, mW, mH, vw, vh, color);
+    } else {
+      strokeBoxOutlineToTrail(targets.map((p) => p.bbox), color);
     }
   }
-  _personMaskCanvas.width = mW;
-  _personMaskCanvas.height = mH;
-  _personMaskCtx.putImageData(img, 0, 0);
-  personMaskValid = true;
 }
 
-// 캐시된 실루엣 마스크를 오버레이에 그린다 (박스보다 먼저 → 박스가 위에 보이게)
+// 색 채움 + 점선 잔상을 오버레이에 그린다 (박스보다 먼저 → 박스/라벨이 위에 보이게)
 function drawPersonSilhouette() {
-  if (!silhouetteToggle.checked || !personMaskValid) return;
-  if (!_personMaskCanvas.width) return;
-  ctx.save();
-  ctx.globalAlpha = parseFloat(silhouetteAlpha.value) || 0.5;
-  ctx.imageSmoothingEnabled = true;
-  ctx.shadowColor = silhouetteColor.value;
-  ctx.shadowBlur = 16;
-  ctx.drawImage(
-    _personMaskCanvas,
-    0, 0, _personMaskCanvas.width, _personMaskCanvas.height,
-    0, 0, canvas.width, canvas.height,
-  );
-  ctx.restore();
+  // (1) 색 채움
+  if (silhouetteToggle.checked && fillValid && _fillCanvas.width) {
+    ctx.save();
+    ctx.globalAlpha = parseFloat(silhouetteAlpha.value) || 0.5;
+    ctx.imageSmoothingEnabled = true;
+    ctx.shadowColor = silhouetteColor.value;
+    ctx.shadowBlur = 16;
+    ctx.drawImage(
+      _fillCanvas,
+      0, 0, _fillCanvas.width, _fillCanvas.height,
+      0, 0, canvas.width, canvas.height,
+    );
+    ctx.restore();
+  }
+  // (2) 점선 잔상
+  if (trailToggle.checked && _trailCanvas.width) {
+    ctx.save();
+    ctx.shadowColor = silhouetteColor.value;
+    ctx.shadowBlur = 8;
+    ctx.drawImage(_trailCanvas, 0, 0);
+    ctx.restore();
+  }
 }
 
 // MobileNet + KNN 로드 (lazy, 중복 로드 방지)

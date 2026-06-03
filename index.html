@@ -269,8 +269,13 @@
           <span>사람을 인식하면 실루엣에 색 입히기</span>
         </label>
         <p class="hint">사람이 보일 때만 몸 모양을 따라 색이 채워져요 ♡</p>
+        <label class="check" style="margin-top: 8px;">
+          <input type="checkbox" id="trailToggle" checked />
+          <span>✨ 윤곽 점선 잔상(트레일) 효과</span>
+        </label>
+        <p class="hint">움직이면 점선 윤곽이 시간차로 따라와요</p>
         <label class="color-row">
-          <span>실루엣 색</span>
+          <span>효과 색</span>
           <input type="color" id="silhouetteColor" value="#ff2e7e" />
         </label>
         <label>
@@ -388,6 +393,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   <script src="vendor/mespeak/mespeak.js"></script>
-  <script src="app.js?v=20260603-silhouette"></script>
+  <script src="app.js?v=20260603-trail"></script>
 </body>
 </html>
