@@ -48,6 +48,9 @@ function generateId() {
 let model = null;
 let stream = null;
 let running = false;
+// 업로드한 영상 파일로 인식 중인지 여부 + 해제할 object URL
+let usingVideoFile = false;
+let videoObjectUrl = null;
 let audioContext = null;
 const lastPlayed = {};
 // label -> 재생 종료 예정 시각(초). 아직 재생 중이면 재트리거 금지.
@@ -89,6 +92,9 @@ const falloffSlider = document.getElementById('falloffSlider');
 const falloffValue = document.getElementById('falloffValue');
 const videoContainer = document.getElementById('videoContainer');
 const camSwitchBtn = document.getElementById('camSwitchBtn');
+// 영상 업로드 (카메라 대신 파일 영상에서 인식)
+const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+const videoFileInput = document.getElementById('videoFileInput');
 // 새 매핑 추가 UI
 const mapName = document.getElementById('mapName');
 const classPicker = document.getElementById('classPicker');
@@ -1332,6 +1338,8 @@ async function runSegmentedTeach(name, tapX, tapY) {
 
 // 카메라 전환 버튼: facingMode 를 토글한 뒤 재시작
 camSwitchBtn.addEventListener('click', async () => {
+  // 업로드 영상 재생 중에는 전/후면 전환이 의미 없으므로 무시
+  if (usingVideoFile) return;
   facingMode = facingMode === 'user' ? 'environment' : 'user';
   // 버튼 라벨 업데이트 (시각적 힌트)
   camSwitchBtn.title = facingMode === 'user'
@@ -1879,12 +1887,73 @@ function applyFacingTransform() {
   }
 }
 
-function stopCamera() {
+// 업로드한 영상 파일을 카메라 화면 자리(#video)에서 재생한다.
+// 카메라와 동일한 <video> 엘리먼트를 쓰므로 기존 감지/사운드 루프가 그대로 적용된다.
+async function startVideoFile(file) {
+  // 카메라 스트림이 있으면 정리
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+  // 이전에 만든 object URL 해제 (메모리 누수 방지)
+  if (videoObjectUrl) {
+    URL.revokeObjectURL(videoObjectUrl);
+    videoObjectUrl = null;
+  }
+
+  video.srcObject = null;
+  videoObjectUrl = URL.createObjectURL(file);
+  video.src = videoObjectUrl;
+  video.loop = true;        // 끝나면 자동 반복 → 계속 인식
+  video.muted = true;       // 영상 자체 소리는 끔 (감지 사운드와 겹치지 않게)
+  usingVideoFile = true;
+  // 업로드 영상은 좌우반전하지 않는다 (전면 카메라용 unflip 해제)
+  videoContainer.classList.remove('unflip');
+
+  await new Promise((resolve, reject) => {
+    if (video.readyState >= 1) {
+      resolve();
+      return;
+    }
+    const onMeta = () => {
+      cleanup();
+      resolve();
+    };
+    const onErr = () => {
+      cleanup();
+      reject(new Error('영상을 불러올 수 없어요 (지원하지 않는 형식일 수 있어요)'));
+    };
+    function cleanup() {
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('error', onErr);
+    }
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('error', onErr);
+  });
+
+  await video.play();
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+}
+
+// 카메라 스트림 또는 업로드 영상을 모두 정리한다.
+function stopSource() {
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
     stream = null;
   }
   video.srcObject = null;
+  if (usingVideoFile) {
+    video.pause();
+    video.loop = false;
+    video.removeAttribute('src');
+    video.load();
+    if (videoObjectUrl) {
+      URL.revokeObjectURL(videoObjectUrl);
+      videoObjectUrl = null;
+    }
+    usingVideoFile = false;
+  }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   detectionList.innerHTML = '';
 }
@@ -2174,15 +2243,64 @@ if (fullscreenBtn) {
   });
 }
 
+// 카메라/영상 공통 준비 단계: 오디오 언락 + 모델/사운드 로드.
+// 반드시 사용자 제스처(클릭) 안에서 호출해야 자동재생 정책에 걸리지 않는다.
+async function ensureReadyForDetection() {
+  // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
+  ensureAudioContext();
+  // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
+  // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
+  unlockSpeechSynthesis();
+  // meSpeak (진짜 병렬 TTS) 비동기 로드 — 끝나면 자동으로 fallback 대신 사용
+  ensureMeSpeak();
+
+  // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
+  if (Object.keys(pendingSoundBuffers).length > 0) {
+    overlayMessage.textContent = '저장된 사운드 디코딩 중...';
+    await decodePendingSounds();
+  }
+
+  if (!model) {
+    overlayMessage.textContent = '모델 로딩 중...';
+    await loadModel();
+  }
+
+  // 저장된 커스텀 클래스가 있으면 MobileNet+KNN 자동 로드 (재방문 시 인식 복원)
+  if (Object.keys(customClasses).length > 0 && !mobilenetModel) {
+    overlayMessage.textContent = '학습된 사물 복원 중...';
+    await ensureTeachModels();
+  }
+}
+
+// 소스(카메라/영상)가 준비된 뒤 감지 루프를 시작한다.
+function startDetectionLoop() {
+  overlayMessage.classList.add('hidden');
+  running = true;
+  startBtn.textContent = '■ 정지';
+  statusEl.textContent = '실행 중';
+  latestPredictions = [];
+  inferCount = 0;
+  paintCount = 0;
+  lastFpsTime = performance.now();
+  lastInferenceStart = 0;
+  inferenceInProgress = false;
+  renderLoop();
+}
+
+// 감지 중지 + 소스/사운드 정리 (시작 버튼 토글, 영상 전환 시 공용)
+function stopDetection(message) {
+  running = false;
+  startBtn.textContent = '▶ 시작';
+  statusEl.textContent = '정지됨';
+  overlayMessage.classList.remove('hidden');
+  overlayMessage.textContent = message;
+  stopSource();
+  stopAllSounds();
+}
+
 startBtn.addEventListener('click', async () => {
   if (running) {
-    running = false;
-    startBtn.textContent = '▶ 시작';
-    statusEl.textContent = '정지됨';
-    overlayMessage.classList.remove('hidden');
-    overlayMessage.textContent = '시작 버튼을 눌러 카메라를 켜세요';
-    stopCamera();
-    stopAllSounds();
+    stopDetection('시작 버튼을 눌러 카메라를 켜세요');
     return;
   }
 
@@ -2190,50 +2308,48 @@ startBtn.addEventListener('click', async () => {
   overlayMessage.classList.remove('hidden');
 
   try {
-    // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
-    ensureAudioContext();
-    // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
-    // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
-    unlockSpeechSynthesis();
-    // meSpeak (진짜 병렬 TTS) 비동기 로드 — 끝나면 자동으로 fallback 대신 사용
-    ensureMeSpeak();
-
-    // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
-    if (Object.keys(pendingSoundBuffers).length > 0) {
-      overlayMessage.textContent = '저장된 사운드 디코딩 중...';
-      await decodePendingSounds();
-    }
-
-    if (!model) {
-      overlayMessage.textContent = '모델 로딩 중...';
-      await loadModel();
-    }
-
-    // 저장된 커스텀 클래스가 있으면 MobileNet+KNN 자동 로드 (재방문 시 인식 복원)
-    if (Object.keys(customClasses).length > 0 && !mobilenetModel) {
-      overlayMessage.textContent = '학습된 사물 복원 중...';
-      await ensureTeachModels();
-    }
-
+    await ensureReadyForDetection();
     overlayMessage.textContent = '카메라 권한 요청 중...';
     await startCamera();
-
-    overlayMessage.classList.add('hidden');
-    running = true;
-    startBtn.textContent = '■ 정지';
-    statusEl.textContent = '실행 중';
-    latestPredictions = [];
-    inferCount = 0;
-    paintCount = 0;
-    lastFpsTime = performance.now();
-    lastInferenceStart = 0;
-    inferenceInProgress = false;
-    renderLoop();
+    startDetectionLoop();
   } catch (e) {
     console.error(e);
     statusEl.textContent = `오류: ${e.message}`;
     overlayMessage.textContent = `오류: ${e.message}`;
   } finally {
+    startBtn.disabled = false;
+  }
+});
+
+// ── 영상 업로드 → 카메라 화면 자리에서 재생하며 인식 ──
+uploadVideoBtn.addEventListener('click', () => videoFileInput.click());
+
+videoFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  // 같은 파일을 다시 선택해도 change 가 발생하도록 값 초기화
+  e.target.value = '';
+  if (!file) return;
+
+  // 진행 중이던 카메라/영상/사운드 정리
+  running = false;
+  stopAllSounds();
+
+  uploadVideoBtn.disabled = true;
+  startBtn.disabled = true;
+  overlayMessage.classList.remove('hidden');
+
+  try {
+    await ensureReadyForDetection();
+    overlayMessage.textContent = '영상 불러오는 중...';
+    await startVideoFile(file);
+    startDetectionLoop();
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = `오류: ${err.message}`;
+    overlayMessage.textContent = `오류: ${err.message}`;
+    usingVideoFile = false;
+  } finally {
+    uploadVideoBtn.disabled = false;
     startBtn.disabled = false;
   }
 });
