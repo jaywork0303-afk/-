@@ -48,6 +48,9 @@ function generateId() {
 let model = null;
 let stream = null;
 let running = false;
+// 업로드한 영상 파일로 인식 중인지 여부 + 해제할 object URL
+let usingVideoFile = false;
+let videoObjectUrl = null;
 let audioContext = null;
 const lastPlayed = {};
 // label -> 재생 종료 예정 시각(초). 아직 재생 중이면 재트리거 금지.
@@ -89,6 +92,16 @@ const falloffSlider = document.getElementById('falloffSlider');
 const falloffValue = document.getElementById('falloffValue');
 const videoContainer = document.getElementById('videoContainer');
 const camSwitchBtn = document.getElementById('camSwitchBtn');
+// 영상 업로드 (카메라 대신 파일 영상에서 인식)
+const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+const videoFileInput = document.getElementById('videoFileInput');
+// 업로드 영상 원본 소리 on/off 토글
+const videoAudioToggle = document.getElementById('videoAudioToggle');
+// 사람 실루엣 색 필터
+const silhouetteToggle = document.getElementById('silhouetteToggle');
+const silhouetteColor = document.getElementById('silhouetteColor');
+const silhouetteAlpha = document.getElementById('silhouetteAlpha');
+const silhouetteAlphaValue = document.getElementById('silhouetteAlphaValue');
 // 새 매핑 추가 UI
 const mapName = document.getElementById('mapName');
 const classPicker = document.getElementById('classPicker');
@@ -203,6 +216,13 @@ intervalSlider.addEventListener('input', () => {
 });
 falloffSlider.addEventListener('input', () => {
   falloffValue.textContent = parseFloat(falloffSlider.value).toFixed(1);
+});
+silhouetteAlpha.addEventListener('input', () => {
+  silhouetteAlphaValue.textContent = parseFloat(silhouetteAlpha.value).toFixed(2);
+});
+// 필터를 끄면 즉시 실루엣 제거
+silhouetteToggle.addEventListener('change', () => {
+  if (!silhouetteToggle.checked) clearPersonSilhouette();
 });
 
 // ---------- IndexedDB: 업로드 사운드 + KNN 학습 데이터 영구 저장 ----------
@@ -945,6 +965,135 @@ function drawSegMask(maskData, maskWidth, maskHeight) {
   ctx.restore();
 }
 
+// ============================================================
+//  사람 실루엣 색 필터
+//  - 감지된 사람의 bbox 중심을 keypoint 로 InteractiveSegmenter 실행
+//  - 사람 영역만 색을 채운 마스크를 오프스크린 캔버스에 캐시
+//  - 페인트 루프에서 캐시된 마스크를 스케일해 그려 부드럽게 표시
+// ============================================================
+const _personMaskCanvas = document.createElement('canvas');
+const _personMaskCtx = _personMaskCanvas.getContext('2d', { willReadFrequently: true });
+let personMaskValid = false;       // 그릴 마스크가 준비됐는지
+let lastSegTime = 0;               // 마지막 세그멘테이션 시각
+let segInFlight = false;           // 세그멘터 로드 대기 중복 방지
+const MIN_SEG_INTERVAL_MS = 180;   // 세그멘테이션 최소 간격 (성능)
+const MAX_SEG_PERSONS = 2;         // 한 번에 분할할 최대 사람 수
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return { r: 255, g: 46, b: 126 };
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function clearPersonSilhouette() {
+  personMaskValid = false;
+}
+
+// 감지된 사람들에 대해 실루엣 마스크를 갱신한다 (throttle 적용).
+// triggerInference 의 detect().then 안에서 호출 → 추론 주기로 자연 제한됨.
+async function updatePersonSilhouette(persons) {
+  if (!silhouetteToggle.checked || persons.length === 0) {
+    clearPersonSilhouette();
+    return;
+  }
+
+  // 세그멘터가 아직 없으면 로드만 트리거하고 이번 프레임은 건너뜀
+  if (!segmenterModel) {
+    if (!segInFlight) {
+      segInFlight = true;
+      ensureSegmenter()
+        .catch((e) => console.warn('세그멘터 로드 실패', e))
+        .finally(() => { segInFlight = false; });
+    }
+    return;
+  }
+
+  const now = performance.now();
+  if (now - lastSegTime < MIN_SEG_INTERVAL_MS) return;
+  lastSegTime = now;
+
+  const vw = video.videoWidth || canvas.width;
+  const vh = video.videoHeight || canvas.height;
+  if (!vw || !vh) return;
+
+  // 면적이 큰 순서로 최대 N명만 분할 (성능 보호)
+  const targets = [...persons]
+    .sort((a, b) => b.bbox[2] * b.bbox[3] - a.bbox[2] * a.bbox[3])
+    .slice(0, MAX_SEG_PERSONS);
+
+  let combined = null;
+  let mW = 0;
+  let mH = 0;
+
+  for (const p of targets) {
+    const cx = (p.bbox[0] + p.bbox[2] / 2) / vw;
+    const cy = (p.bbox[1] + p.bbox[3] / 2) / vh;
+    const nx = Math.min(0.999, Math.max(0.001, cx));
+    const ny = Math.min(0.999, Math.max(0.001, cy));
+    try {
+      const result = segmenterModel.segment(video, { keypoint: { x: nx, y: ny } });
+      if (result && result.categoryMask) {
+        const mask = result.categoryMask;
+        const data = mask.getAsUint8Array();
+        if (!combined) {
+          mW = mask.width;
+          mH = mask.height;
+          combined = new Uint8Array(mW * mH);
+        }
+        if (mask.width === mW && mask.height === mH) {
+          for (let i = 0; i < combined.length; i++) {
+            if (data[i] !== 0) combined[i] = 1;
+          }
+        }
+        result.close();
+      }
+    } catch (e) {
+      console.warn('사람 세그멘테이션 실패', e);
+    }
+  }
+
+  if (!combined) {
+    clearPersonSilhouette();
+    return;
+  }
+
+  // 색이 채워진 RGBA 마스크를 오프스크린 캔버스에 그려 캐시
+  const { r, g, b } = hexToRgb(silhouetteColor.value);
+  const img = _personMaskCtx.createImageData(mW, mH);
+  const px = img.data;
+  for (let i = 0; i < combined.length; i++) {
+    const o = i * 4;
+    if (combined[i]) {
+      px[o] = r;
+      px[o + 1] = g;
+      px[o + 2] = b;
+      px[o + 3] = 255; // 알파는 그릴 때 globalAlpha 로 조절
+    }
+  }
+  _personMaskCanvas.width = mW;
+  _personMaskCanvas.height = mH;
+  _personMaskCtx.putImageData(img, 0, 0);
+  personMaskValid = true;
+}
+
+// 캐시된 실루엣 마스크를 오버레이에 그린다 (박스보다 먼저 → 박스가 위에 보이게)
+function drawPersonSilhouette() {
+  if (!silhouetteToggle.checked || !personMaskValid) return;
+  if (!_personMaskCanvas.width) return;
+  ctx.save();
+  ctx.globalAlpha = parseFloat(silhouetteAlpha.value) || 0.5;
+  ctx.imageSmoothingEnabled = true;
+  ctx.shadowColor = silhouetteColor.value;
+  ctx.shadowBlur = 16;
+  ctx.drawImage(
+    _personMaskCanvas,
+    0, 0, _personMaskCanvas.width, _personMaskCanvas.height,
+    0, 0, canvas.width, canvas.height,
+  );
+  ctx.restore();
+}
+
 // MobileNet + KNN 로드 (lazy, 중복 로드 방지)
 async function ensureTeachModels() {
   if (mobilenetModel && knnModel) return;
@@ -1332,6 +1481,8 @@ async function runSegmentedTeach(name, tapX, tapY) {
 
 // 카메라 전환 버튼: facingMode 를 토글한 뒤 재시작
 camSwitchBtn.addEventListener('click', async () => {
+  // 업로드 영상 재생 중에는 전/후면 전환이 의미 없으므로 무시
+  if (usingVideoFile) return;
   facingMode = facingMode === 'user' ? 'environment' : 'user';
   // 버튼 라벨 업데이트 (시각적 힌트)
   camSwitchBtn.title = facingMode === 'user'
@@ -1879,18 +2030,83 @@ function applyFacingTransform() {
   }
 }
 
-function stopCamera() {
+// 업로드한 영상 파일을 카메라 화면 자리(#video)에서 재생한다.
+// 카메라와 동일한 <video> 엘리먼트를 쓰므로 기존 감지/사운드 루프가 그대로 적용된다.
+async function startVideoFile(file) {
+  // 카메라 스트림이 있으면 정리
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+  // 이전에 만든 object URL 해제 (메모리 누수 방지)
+  if (videoObjectUrl) {
+    URL.revokeObjectURL(videoObjectUrl);
+    videoObjectUrl = null;
+  }
+
+  video.srcObject = null;
+  videoObjectUrl = URL.createObjectURL(file);
+  video.src = videoObjectUrl;
+  video.loop = true;        // 끝나면 자동 반복 → 계속 인식
+  // 원본 소리 토글 on 이면 영상 소리도 같이 재생, off 면 감지 사운드만
+  video.muted = !videoAudioToggle.checked;
+  usingVideoFile = true;
+  // 업로드 영상은 좌우반전하지 않는다 (전면 카메라용 unflip 해제)
+  videoContainer.classList.remove('unflip');
+
+  await new Promise((resolve, reject) => {
+    if (video.readyState >= 1) {
+      resolve();
+      return;
+    }
+    const onMeta = () => {
+      cleanup();
+      resolve();
+    };
+    const onErr = () => {
+      cleanup();
+      reject(new Error('영상을 불러올 수 없어요 (지원하지 않는 형식일 수 있어요)'));
+    };
+    function cleanup() {
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('error', onErr);
+    }
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('error', onErr);
+  });
+
+  await video.play();
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+}
+
+// 카메라 스트림 또는 업로드 영상을 모두 정리한다.
+function stopSource() {
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
     stream = null;
   }
   video.srcObject = null;
+  if (usingVideoFile) {
+    video.pause();
+    video.loop = false;
+    video.removeAttribute('src');
+    video.load();
+    if (videoObjectUrl) {
+      URL.revokeObjectURL(videoObjectUrl);
+      videoObjectUrl = null;
+    }
+    usingVideoFile = false;
+  }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   detectionList.innerHTML = '';
 }
 
 function drawDetections(predictions) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 사람 실루엣 색 필터 (박스보다 먼저 그려서 박스/라벨이 위에 오게)
+  drawPersonSilhouette();
 
   // 거리 모드일 때: 사람 중심점을 미리 모아두고, 각 사물에서 가장 가까운 사람으로
   // 옅은 선을 그어 시각적으로 페어링을 보여준다
@@ -2124,6 +2340,10 @@ function triggerInference() {
       latestPredictions = filtered;
       updateDetectionList(latestPredictions);
       playSounds(latestPredictions);
+
+      // 사람 실루엣 색 필터 갱신 (사람이 있을 때만)
+      updatePersonSilhouette(filtered.filter((p) => p.class === 'person'));
+
       inferCount++;
     })
     .catch((e) => console.error('detection error', e))
@@ -2174,15 +2394,65 @@ if (fullscreenBtn) {
   });
 }
 
+// 카메라/영상 공통 준비 단계: 오디오 언락 + 모델/사운드 로드.
+// 반드시 사용자 제스처(클릭) 안에서 호출해야 자동재생 정책에 걸리지 않는다.
+async function ensureReadyForDetection() {
+  // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
+  ensureAudioContext();
+  // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
+  // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
+  unlockSpeechSynthesis();
+  // meSpeak (진짜 병렬 TTS) 비동기 로드 — 끝나면 자동으로 fallback 대신 사용
+  ensureMeSpeak();
+
+  // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
+  if (Object.keys(pendingSoundBuffers).length > 0) {
+    overlayMessage.textContent = '저장된 사운드 디코딩 중...';
+    await decodePendingSounds();
+  }
+
+  if (!model) {
+    overlayMessage.textContent = '모델 로딩 중...';
+    await loadModel();
+  }
+
+  // 저장된 커스텀 클래스가 있으면 MobileNet+KNN 자동 로드 (재방문 시 인식 복원)
+  if (Object.keys(customClasses).length > 0 && !mobilenetModel) {
+    overlayMessage.textContent = '학습된 사물 복원 중...';
+    await ensureTeachModels();
+  }
+}
+
+// 소스(카메라/영상)가 준비된 뒤 감지 루프를 시작한다.
+function startDetectionLoop() {
+  overlayMessage.classList.add('hidden');
+  running = true;
+  startBtn.textContent = '■ 정지';
+  statusEl.textContent = '실행 중';
+  latestPredictions = [];
+  inferCount = 0;
+  paintCount = 0;
+  lastFpsTime = performance.now();
+  lastInferenceStart = 0;
+  inferenceInProgress = false;
+  renderLoop();
+}
+
+// 감지 중지 + 소스/사운드 정리 (시작 버튼 토글, 영상 전환 시 공용)
+function stopDetection(message) {
+  running = false;
+  startBtn.textContent = '▶ 시작';
+  statusEl.textContent = '정지됨';
+  overlayMessage.classList.remove('hidden');
+  overlayMessage.textContent = message;
+  stopSource();
+  stopAllSounds();
+  clearPersonSilhouette();
+}
+
 startBtn.addEventListener('click', async () => {
   if (running) {
-    running = false;
-    startBtn.textContent = '▶ 시작';
-    statusEl.textContent = '정지됨';
-    overlayMessage.classList.remove('hidden');
-    overlayMessage.textContent = '시작 버튼을 눌러 카메라를 켜세요';
-    stopCamera();
-    stopAllSounds();
+    stopDetection('시작 버튼을 눌러 카메라를 켜세요');
     return;
   }
 
@@ -2190,50 +2460,59 @@ startBtn.addEventListener('click', async () => {
   overlayMessage.classList.remove('hidden');
 
   try {
-    // AudioContext는 사용자 제스처 안에서 생성해야 자동재생 정책에 걸리지 않음
-    ensureAudioContext();
-    // 모바일(iOS Safari 포함) speechSynthesis unlock: 사용자 제스처 안에서
-    // 한 번 빈 utterance 를 실행해야 이후 speak() 호출이 동작한다
-    unlockSpeechSynthesis();
-    // meSpeak (진짜 병렬 TTS) 비동기 로드 — 끝나면 자동으로 fallback 대신 사용
-    ensureMeSpeak();
-
-    // IndexedDB 에서 불러왔지만 아직 디코딩 안 된 사운드가 있으면 지금 처리
-    if (Object.keys(pendingSoundBuffers).length > 0) {
-      overlayMessage.textContent = '저장된 사운드 디코딩 중...';
-      await decodePendingSounds();
-    }
-
-    if (!model) {
-      overlayMessage.textContent = '모델 로딩 중...';
-      await loadModel();
-    }
-
-    // 저장된 커스텀 클래스가 있으면 MobileNet+KNN 자동 로드 (재방문 시 인식 복원)
-    if (Object.keys(customClasses).length > 0 && !mobilenetModel) {
-      overlayMessage.textContent = '학습된 사물 복원 중...';
-      await ensureTeachModels();
-    }
-
+    await ensureReadyForDetection();
     overlayMessage.textContent = '카메라 권한 요청 중...';
     await startCamera();
-
-    overlayMessage.classList.add('hidden');
-    running = true;
-    startBtn.textContent = '■ 정지';
-    statusEl.textContent = '실행 중';
-    latestPredictions = [];
-    inferCount = 0;
-    paintCount = 0;
-    lastFpsTime = performance.now();
-    lastInferenceStart = 0;
-    inferenceInProgress = false;
-    renderLoop();
+    startDetectionLoop();
   } catch (e) {
     console.error(e);
     statusEl.textContent = `오류: ${e.message}`;
     overlayMessage.textContent = `오류: ${e.message}`;
   } finally {
+    startBtn.disabled = false;
+  }
+});
+
+// ── 영상 업로드 → 카메라 화면 자리에서 재생하며 인식 ──
+uploadVideoBtn.addEventListener('click', () => videoFileInput.click());
+
+// 원본 소리 토글: 영상 재생 중이면 즉시 음소거 on/off 반영
+videoAudioToggle.addEventListener('change', () => {
+  if (!usingVideoFile) return;
+  video.muted = !videoAudioToggle.checked;
+  // 일부 브라우저는 음소거 해제 시 재생을 막을 수 있어 한 번 더 play 시도
+  if (!video.muted) {
+    const p = video.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
+});
+
+videoFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  // 같은 파일을 다시 선택해도 change 가 발생하도록 값 초기화
+  e.target.value = '';
+  if (!file) return;
+
+  // 진행 중이던 카메라/영상/사운드 정리
+  running = false;
+  stopAllSounds();
+
+  uploadVideoBtn.disabled = true;
+  startBtn.disabled = true;
+  overlayMessage.classList.remove('hidden');
+
+  try {
+    await ensureReadyForDetection();
+    overlayMessage.textContent = '영상 불러오는 중...';
+    await startVideoFile(file);
+    startDetectionLoop();
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = `오류: ${err.message}`;
+    overlayMessage.textContent = `오류: ${err.message}`;
+    usingVideoFile = false;
+  } finally {
+    uploadVideoBtn.disabled = false;
     startBtn.disabled = false;
   }
 });
