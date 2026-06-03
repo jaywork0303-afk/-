@@ -1294,15 +1294,17 @@ footer::after {
   transform: scale(1.08) rotate(0deg) !important;
 }
 
-/* 풀스크린 모드 — 모바일 가로 가득 채움, CRT/필터 없음 */
+/* 풀스크린 모드 — 영상 전체를 잘림 없이 화면에 맞춤 (검은 여백 허용) */
 body.pseudo-fullscreen { overflow: hidden !important; }
 body.pseudo-fullscreen #videoContainer {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
+  height: 100dvh !important;
   max-width: 100vw !important;
   max-height: 100vh !important;
+  max-height: 100dvh !important;
   margin: 0 !important;
   padding: 0 !important;
   background: #000 !important;
@@ -1321,11 +1323,12 @@ body.pseudo-fullscreen #videoContainer::after {
 }
 body.pseudo-fullscreen #videoContainer #video,
 body.pseudo-fullscreen #videoContainer #overlay {
-  width: 100vw !important;
-  height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: 100vw !important;
   max-height: 100vh !important;
-  object-fit: cover !important;
+  max-height: 100dvh !important;
+  object-fit: contain !important;
   border-radius: 0 !important;
 }
 body.pseudo-fullscreen .site-header,
