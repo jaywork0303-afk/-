@@ -283,8 +283,9 @@ main {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 28px;
+  align-items: start;
   padding: 20px 28px 40px;
   max-width: 1200px;
   width: 100%;
@@ -313,6 +314,15 @@ main {
   border-radius: 26px 18px 32px 20px;
   overflow: visible;
   aspect-ratio: 4 / 3;
+  width: 100%;
+  /* 화면 크기 적응형: 4:3 비율을 유지하면서 뷰포트를 절대 넘지 않도록.
+     세로가 짧은 화면에서는 높이에 맞춰 너비가 함께 줄어든다. */
+  max-height: calc(100vh - 210px);
+  max-height: calc(100dvh - 210px);
+  max-width: calc((100vh - 210px) * 4 / 3);
+  max-width: calc((100dvh - 210px) * 4 / 3);
+  justify-self: center;
+  align-self: start;
   border: 5px solid var(--pink-hot);
   /* 네 모서리에서 삐져나오는 멀티컬러 오프셋 그림자 */
   box-shadow:
