@@ -539,6 +539,22 @@ button.secondary:disabled {
   cursor: not-allowed;
 }
 
+.color-row {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.color-row input[type='color'] {
+  width: 52px;
+  height: 34px;
+  padding: 0;
+  border: 3px solid var(--ink);
+  border-radius: 10px 14px 8px 12px;
+  background: var(--paper);
+  cursor: pointer;
+}
+
 .status {
   padding: 10px 16px;
   background: var(--lemon);
